@@ -1,0 +1,397 @@
+/* Расписание */
+
+.schedule-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.schedule-tabs {
+    display: flex;
+    gap: 0.35rem;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 0.25rem;
+}
+
+.schedule-tabs__btn {
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+    color: var(--color-muted);
+    text-decoration: none;
+    transition: background 0.15s, color 0.15s;
+}
+
+.schedule-tabs__btn:hover {
+    color: var(--violet-700);
+    background: var(--violet-50);
+}
+
+.schedule-tabs__btn--active {
+    background: linear-gradient(135deg, var(--violet-500), var(--violet-700));
+    color: #fff;
+    font-weight: 600;
+}
+
+.today-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+    margin-bottom: 1.25rem;
+}
+
+.toolbar--inline {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.today-lessons {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.lesson-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 1rem 1.25rem;
+    box-shadow: var(--shadow-sm);
+}
+
+.lesson-card--cancelled {
+    opacity: 0.65;
+    border-style: dashed;
+}
+
+.lesson-card--single {
+    border-left: 4px solid var(--violet-400);
+}
+
+.lesson-card--makeup {
+    border-left: 4px solid #10b981;
+}
+
+.lesson-card__head {
+    margin-bottom: 0.75rem;
+}
+
+.lesson-card__time {
+    font-size: 0.85rem;
+    color: var(--color-muted);
+    font-weight: 600;
+}
+
+.lesson-card__title {
+    margin: 0.15rem 0;
+    font-size: 1.1rem;
+}
+
+.lesson-card__meta {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--color-muted);
+}
+
+.badge {
+    display: inline-block;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-left: 0.35rem;
+}
+
+.badge--danger {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.badge--warn {
+    background: #fef3c7;
+    color: #b45309;
+}
+
+.col-check {
+    width: 70px;
+    text-align: center;
+}
+
+/* Недельная сетка */
+.week-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 2rem;
+}
+
+@media (max-width: 1200px) {
+    .week-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .week-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.week-day {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+}
+
+.week-day__head {
+    padding: 0.65rem 0.85rem;
+    font-weight: 700;
+    font-size: 0.9rem;
+    background: linear-gradient(135deg, var(--violet-50), #fff);
+    border-bottom: 1px solid var(--color-border);
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+.week-day__list {
+    list-style: none;
+    margin: 0;
+    padding: 0.5rem;
+    flex: 1;
+    min-height: 120px;
+}
+
+.week-slot {
+    background: #fff;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 0.5rem 0.6rem;
+    margin-bottom: 0.45rem;
+    cursor: default;
+    transition: box-shadow 0.15s, transform 0.15s;
+}
+
+.week-grid--edit .week-slot {
+    cursor: grab;
+}
+
+.week-grid--edit .week-slot:hover {
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.15);
+}
+
+.week-slot.sortable-ghost {
+    opacity: 0.4;
+}
+
+.week-slot__time {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--violet-600);
+}
+
+.week-slot__title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin: 0.15rem 0;
+}
+
+.week-slot__meta {
+    font-size: 0.75rem;
+    color: var(--color-muted);
+}
+
+.week-slot__actions {
+    display: flex;
+    gap: 0.25rem;
+    margin-top: 0.35rem;
+}
+
+.week-day__add {
+    margin: 0.5rem;
+}
+
+.btn-icon {
+    border: none;
+    background: var(--violet-50);
+    color: var(--violet-700);
+    width: 1.6rem;
+    height: 1.6rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    line-height: 1;
+}
+
+.btn-icon--danger {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+/* Модалки */
+.modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.modal[hidden] {
+    display: none;
+}
+
+.modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+}
+
+.modal__panel {
+    position: relative;
+    background: #fff;
+    border-radius: var(--radius-md);
+    padding: 1.25rem 1.5rem;
+    width: min(520px, 100%);
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: var(--shadow-lg);
+}
+
+.modal__panel h3 {
+    margin: 0 0 1rem;
+}
+
+.table-slot-actions {
+    white-space: nowrap;
+    text-align: right;
+}
+
+.table-slot-actions .inline-form {
+    display: inline;
+}
+
+.week-slot__meta--sub {
+    font-size: 0.78rem;
+    opacity: 0.85;
+}
+
+.field--slot-student[hidden] {
+    display: none !important;
+}
+
+.cell-input {
+    width: 100%;
+    border: 1px solid transparent;
+    background: transparent;
+    padding: 0.35rem 0.5rem;
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 0.9rem;
+}
+
+.cell-input:focus {
+    outline: none;
+    border-color: var(--violet-400);
+    background: #fff;
+    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.12);
+}
+
+.cell-input--sm {
+    font-size: 0.85rem;
+}
+
+.cell-input--num {
+    max-width: 90px;
+}
+
+.form-actions--sticky {
+    margin-top: 1rem;
+    padding: 0.75rem 0;
+}
+
+.metrics-row--4 {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+@media (max-width: 900px) {
+    .metrics-row--4 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.metric-card--accent {
+    background: linear-gradient(135deg, var(--violet-500), var(--violet-700));
+    color: #fff;
+}
+
+.metric-card--accent .metric-card__label,
+.metric-card--accent .metric-card__hint {
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.metric-card__hint {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--color-muted);
+    margin-top: 0.15rem;
+}
+
+.dir-mini-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 1rem;
+}
+
+.dir-mini-card h4 {
+    margin: 0 0 0.5rem;
+    font-size: 0.95rem;
+}
+
+.student-chip-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.student-chip-list a {
+    display: inline-block;
+    padding: 0.2rem 0.55rem;
+    background: var(--violet-50);
+    color: var(--violet-700);
+    border-radius: 999px;
+    font-size: 0.8rem;
+    text-decoration: none;
+}
+
+.panel--nested {
+    margin-bottom: 1rem;
+}
+
+.dash-table--compact th,
+.dash-table--compact td {
+    padding: 0.45rem 0.65rem;
+    font-size: 0.85rem;
+}
+
+.inline-form {
+    display: inline;
+}

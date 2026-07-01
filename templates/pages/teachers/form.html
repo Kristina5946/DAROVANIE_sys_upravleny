@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{% if is_create %}Новый преподаватель{% else %}{{ form.instance.name }}{% endif %}{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/pages/entities.css' %}">{% endblock %}
+
+{% block content %}
+<div class="page-actions">
+    <a href="{% url 'core:teacher_list' %}" class="btn btn--ghost">← Преподаватели</a>
+</div>
+
+<div class="panel panel--form">
+    <h2>{% if is_create %}Новый преподаватель{% else %}Редактирование{% endif %}</h2>
+    <form method="post" class="entity-form">
+        {% csrf_token %}
+        <div class="form-grid">
+            <div class="field">
+                <label>ФИО</label>
+                {{ form.name }}
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Телефон</label>
+                    {{ form.phone }}
+                </div>
+                <div class="field">
+                    <label>Email</label>
+                    {{ form.email }}
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Дата приёма</label>
+                    {{ form.hire_date }}
+                </div>
+            </div>
+            <div class="field">
+                <label>Заметки</label>
+                {{ form.notes }}
+            </div>
+            <div class="field form-section--full">
+                <label>Направления</label>
+                <div class="checkbox-grid">{{ form.directions }}</div>
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn--primary">Сохранить</button>
+            <a href="{% url 'core:teacher_list' %}" class="btn btn--ghost">Отмена</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ direction.name }}{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/pages/entities.css' %}">{% endblock %}
+
+{% block content %}
+<div class="page-actions">
+    <a href="{% url 'core:direction_list' %}" class="btn btn--ghost">← Направления</a>
+    {% if not edit_mode %}
+    <a href="?edit=1" class="btn btn--primary btn--sm">✎ Редактировать</a>
+    {% endif %}
+    <a href="{% url 'core:student_list' %}?direction={{ direction.pk }}" class="btn btn--ghost btn--sm">Ученики ({{ direction.students_count }})</a>
+    <a href="{% url 'core:subscriptions' %}?direction={{ direction.pk }}" class="btn btn--ghost btn--sm">Все абонементы</a>
+</div>
+
+{% if edit_mode and form %}
+<div class="panel panel--form">
+    <h2 class="panel__title">Редактирование</h2>
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_direction">
+        <div class="form-grid form-grid--compact">
+            {% for field in form %}
+            <div class="field {% if field.name == 'description' %}form-section--full{% endif %}">
+                <label>{{ field.label }}</label>
+                {{ field }}
+            </div>
+            {% endfor %}
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn--primary">Сохранить</button>
+            <a href="{% url 'core:direction_detail' direction.pk %}" class="btn btn--ghost">Отмена</a>
+            <button type="submit" formaction="{% url 'core:direction_delete' direction.pk %}"
+                    class="btn btn--danger btn--sm" onclick="return confirm('Удалить направление?')">Удалить</button>
+        </div>
+    </form>
+</div>
+{% else %}
+<div class="direction-hero">
+    <div class="direction-hero__badge tag tag--{% if direction.lesson_type == 'individual' %}ind{% else %}grp{% endif %}">
+        {{ direction.get_lesson_type_display }}
+    </div>
+    <h2 class="direction-hero__name">{{ direction.name }}</h2>
+    {% if direction.description %}<p class="direction-hero__desc">{{ direction.description }}</p>{% endif %}
+    <div class="direction-hero__prices">
+        <div class="price-chip">
+            <span class="price-chip__label">За занятие (абон.)</span>
+            <span class="price-chip__value">{{ direction.price_per_lesson|floatformat:0 }} ₽</span>
+        </div>
+        <div class="price-chip">
+            <span class="price-chip__label">Разовое</span>
+            <span class="price-chip__value">{{ direction.single_lesson_cost|floatformat:0 }} ₽</span>
+        </div>
+        <div class="price-chip">
+            <span class="price-chip__label">Абонемент / мес</span>
+            <span class="price-chip__value">{{ direction.subscription_cost|floatformat:0 }} ₽</span>
+        </div>
+        <div class="price-chip price-chip--muted">
+            <span class="price-chip__label">Возраст</span>
+            <span class="price-chip__value">{{ direction.min_age }}–{{ direction.max_age }} лет</span>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<section class="section-block">
+    <div class="section-block__head">
+        <h2>Абонементы учеников</h2>
+        <span class="text-muted">{{ student_cards|length }} ученик(ов)</span>
+    </div>
+    <div class="dir-cards-grid">
+        {% for item in student_cards %}
+        <article class="dir-card dir-card--{{ item.color }}">
+            <header class="dir-card__header">
+                <h3 class="dir-card__title">
+                    <a href="{% url 'core:student_detail' item.student.pk %}" class="link-entity">{{ item.student.name }}</a>
+                </h3>
+                {% if item.has_subscription %}
+                <span class="dir-card__badge dir-card__badge--active">Активен</span>
+                {% else %}
+                <span class="dir-card__badge">Нет абонемента</span>
+                {% endif %}
+            </header>
+
+            {% if item.subscription %}
+            <p class="dir-card__period">{{ item.subscription.start_date|date:"d.m.Y" }} — {{ item.subscription.end_date|date:"d.m.Y" }}</p>
+            <div class="progress-bar">
+                <div class="progress-bar__fill progress-bar__fill--{{ item.color }}" style="width: {{ item.percent }}%"></div>
+            </div>
+            <p class="progress-bar__label">
+                <strong>{{ item.used }}</strong> из <strong>{{ item.total }}</strong> занятий
+                {% if item.remaining %}· осталось <strong>{{ item.remaining }}</strong>{% endif %}
+            </p>
+            <div class="dir-card__amounts">
+                <div class="dir-card__amount-row"><span>Оплачено</span><strong>{{ item.amount_paid|floatformat:0 }} ₽</strong></div>
+                <div class="dir-card__amount-row"><span>Использовано</span><span>{{ item.amount_used|floatformat:0 }} ₽</span></div>
+                <div class="dir-card__amount-row dir-card__amount-row--highlight"><span>Остаток</span><strong>{{ item.balance|floatformat:0 }} ₽</strong></div>
+            </div>
+            {% else %}
+            <p class="dir-card__empty">Абонемент не оформлен</p>
+            {% endif %}
+
+            {% if item.last_payment %}
+            <div class="last-payment">
+                <span class="last-payment__label">Последняя оплата</span>
+                <span class="last-payment__value">{{ item.last_payment.amount|floatformat:0 }} ₽</span>
+                <span class="last-payment__date">{{ item.last_payment.payment_date|date:"d.m.Y" }}</span>
+                <span class="last-payment__type">{{ item.last_payment.get_payment_type_display }}</span>
+            </div>
+            {% endif %}
+
+            <a href="{% url 'core:student_detail' item.student.pk %}" class="subscription-card__link">Карточка ученика →</a>
+        </article>
+        {% empty %}
+        <p class="text-muted">На это направление пока не записан ни один ученик.</p>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

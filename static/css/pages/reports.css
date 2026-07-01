@@ -1,0 +1,213 @@
+/* Сводная страница отчётов */
+
+.reports-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.reports-period-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    padding: 0.85rem 1.1rem;
+    margin: 0;
+}
+
+.reports-period-form__label {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.reports-period-form__hint {
+    font-size: 0.82rem;
+}
+
+.reports-kpi {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+@media (max-width: 1000px) {
+    .reports-kpi {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 560px) {
+    .reports-kpi {
+        grid-template-columns: 1fr;
+    }
+}
+
+.reports-kpi__sub {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--color-muted);
+    margin-top: 0.35rem;
+}
+
+.reports-kpi__expense {
+    color: #dc2626;
+}
+
+.reports-kpi__profit {
+    color: #059669;
+}
+
+.reports-kpi__loss {
+    color: #dc2626;
+}
+
+.reports-charts {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+@media (max-width: 1100px) {
+    .reports-charts {
+        grid-template-columns: 1fr 1fr;
+    }
+    .reports-chart-panel--wide {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 700px) {
+    .reports-charts {
+        grid-template-columns: 1fr;
+    }
+}
+
+.reports-chart-panel {
+    min-height: 220px;
+}
+
+.bar-chart__fill--income {
+    background: linear-gradient(90deg, #059669, #34d399);
+}
+
+.bar-chart__fill--expense {
+    background: linear-gradient(90deg, #f97316, #fb923c);
+}
+
+/* Тренд за 6 месяцев */
+.trend-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.65rem;
+    height: 160px;
+    margin-top: 1rem;
+    padding: 0 0.25rem;
+}
+
+.trend-chart__col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+}
+
+.trend-chart__bars {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 4px;
+    height: 130px;
+    width: 100%;
+}
+
+.trend-chart__bar {
+    width: 38%;
+    border-radius: 4px 4px 0 0;
+    min-height: 4px;
+    transition: height 0.35s ease;
+}
+
+.trend-chart__bar--income {
+    background: linear-gradient(180deg, var(--violet-500), var(--violet-300));
+}
+
+.trend-chart__bar--profit {
+    background: linear-gradient(180deg, #059669, #6ee7b7);
+}
+
+.trend-chart__bar--loss {
+    background: linear-gradient(180deg, #dc2626, #fca5a5);
+}
+
+.trend-chart__label {
+    font-size: 0.72rem;
+    color: var(--color-muted);
+    text-align: center;
+}
+
+.reports-legend {
+    display: flex;
+    gap: 1rem;
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--color-muted);
+}
+
+.reports-legend__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.reports-legend__dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    display: inline-block;
+}
+
+.reports-legend__dot--income {
+    background: var(--violet-500);
+}
+
+.reports-legend__dot--profit {
+    background: #059669;
+}
+
+.reports-tables {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 1rem;
+}
+
+@media (max-width: 900px) {
+    .reports-tables {
+        grid-template-columns: 1fr;
+    }
+}
+
+.reports-col-chart {
+    width: 120px;
+}
+
+.inline-bar {
+    height: 8px;
+    background: var(--violet-50);
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid var(--violet-100);
+}
+
+.inline-bar__fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--violet-600), var(--violet-400));
+    border-radius: 3px;
+    min-width: 2px;
+}

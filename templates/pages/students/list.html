@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load core_extras %}
+
+{% block title %}Ученики{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/pages/entities.css' %}">{% endblock %}
+
+{% block content %}
+<div class="page-toolbar">
+    {% include 'components/search_bar.html' with action_url=request.path clear_url=request.path %}
+    <a href="{% url 'core:student_create' %}" class="btn btn--primary">+ Добавить ученика</a>
+</div>
+
+<p class="list-meta">Найдено: <strong>{{ total_count }}</strong></p>
+
+<div class="panel panel--table">
+    <div class="table-wrap">
+        <table class="dash-table dash-table--clickable">
+            <thead>
+                <tr>
+                    <th>ФИО</th>
+                    <th>Возраст</th>
+                    <th>Пол</th>
+                    <th>Родитель</th>
+                    <th>Телефон</th>
+                    <th>Направления</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in students %}
+                <tr data-href="{% url 'core:student_detail' s.pk %}">
+                    <td>
+                        <a href="{% url 'core:student_detail' s.pk %}" class="link-entity">{{ s.name }}</a>
+                    </td>
+                    <td>{{ s.date_of_birth|age_years }} лет</td>
+                    <td>{{ s.gender|gender_label }}</td>
+                    <td>{% if s.parent %}{{ s.parent.name }}{% else %}—{% endif %}</td>
+                    <td>{% if s.parent %}{{ s.parent.phone|default:"—" }}{% else %}—{% endif %}</td>
+                    <td>
+                        <div class="tag-list">
+                            {% for d in s.directions.all %}
+                            <a href="{% url 'core:student_list' %}?direction={{ d.pk }}" class="tag" onclick="event.stopPropagation()">{{ d.name }}</a>
+                            {% empty %}—{% endfor %}
+                        </div>
+                    </td>
+                    <td><span class="row-arrow">→</span></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="text-muted text-center">Ученики не найдены</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/table-rows.js' %}"></script>
+{% endblock %}

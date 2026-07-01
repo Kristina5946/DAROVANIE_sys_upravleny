@@ -1,0 +1,21 @@
+<form method="get" class="toolbar" action="{{ action_url|default:'' }}">
+    <div class="toolbar__search">
+        <span class="toolbar__search-icon">🔍</span>
+        {{ search_form.q }}
+    </div>
+    {% if show_filters|default:True and search_form.direction %}
+    <div class="toolbar__filters">
+        {{ search_form.direction }}
+        {% if search_form.gender %}{{ search_form.gender }}{% endif %}
+        <button type="submit" class="btn btn--primary btn--sm">Найти</button>
+        {% if request.GET %}
+        <a href="{{ clear_url|default:request.path }}" class="btn btn--ghost btn--sm">Сбросить</a>
+        {% endif %}
+    </div>
+    {% else %}
+    <button type="submit" class="btn btn--primary btn--sm">Найти</button>
+    {% if request.GET %}
+    <a href="{{ clear_url|default:request.path }}" class="btn btn--ghost btn--sm">Сбросить</a>
+    {% endif %}
+    {% endif %}
+</form>

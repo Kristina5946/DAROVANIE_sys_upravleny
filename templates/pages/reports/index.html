@@ -1,0 +1,200 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Отчёты — {{ site_name }}{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/pages/entities.css' %}">
+<link rel="stylesheet" href="{% static 'css/pages/payments.css' %}">
+<link rel="stylesheet" href="{% static 'css/pages/reports.css' %}">
+{% endblock %}
+
+{% block content %}
+{% with d=dashboard p=dashboard.profit %}
+
+<div class="reports-header">
+    <form method="get" class="reports-period-form panel">
+        <span class="reports-period-form__label">Период</span>
+        <select name="month" class="filter-select">
+            {% for num, label in month_labels %}
+            <option value="{{ num }}" {% if num == month %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        <select name="year" class="filter-select">
+            {% for y in year_choices %}
+            <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn--primary btn--sm">Показать</button>
+        <span class="text-muted reports-period-form__hint">
+            {{ dashboard.period_from|date:"d.m.Y" }} — {{ dashboard.period_to|date:"d.m.Y" }}
+        </span>
+    </form>
+    <div class="reports-header__links">
+        <a href="{% url 'core:payments_report' %}?date_from={{ dashboard.period_from|date:'Y-m-d' }}&date_to={{ dashboard.period_to|date:'Y-m-d' }}" class="btn btn--ghost btn--sm">Детализация оплат →</a>
+    </div>
+</div>
+
+<div class="reports-kpi">
+    <div class="metric-card">
+        <div class="metric-card__head"><span class="metric-card__label">Доходы</span></div>
+        <div class="metric-card__value">{{ p.income|floatformat:0 }} <small>₽</small></div>
+        <span class="reports-kpi__sub">{{ dashboard.totals.payments_count }} оплат</span>
+    </div>
+    <div class="metric-card">
+        <div class="metric-card__head"><span class="metric-card__label">Расходы</span></div>
+        <div class="metric-card__value reports-kpi__expense">{{ p.expenses_materials|add:p.expenses_salary|floatformat:0 }} <small>₽</small></div>
+        <span class="reports-kpi__sub">закупки + зарплаты</span>
+    </div>
+    <div class="metric-card metric-card--violet">
+        <div class="metric-card__head"><span class="metric-card__label">{% if p.is_profit %}Прибыль{% else %}Убыток{% endif %}</span></div>
+        <div class="metric-card__value {% if p.is_profit %}reports-kpi__profit{% else %}reports-kpi__loss{% endif %}">
+            {{ p.profit|floatformat:0 }} <small>₽</small>
+        </div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-card__head"><span class="metric-card__label">Зарплаты (30%)</span></div>
+        <div class="metric-card__value">{{ p.expenses_salary|floatformat:0 }} <small>₽</small></div>
+        <span class="reports-kpi__sub">{{ dashboard.totals.visits }} посещений</span>
+    </div>
+</div>
+
+<section class="reports-charts">
+    <div class="panel reports-chart-panel reports-chart-panel--wide">
+        <h3 class="panel__title panel__title--sm">Динамика за 6 месяцев</h3>
+        {% if dashboard.trend %}
+        <div class="trend-chart">
+            {% for point in dashboard.trend %}
+            <div class="trend-chart__col">
+                <div class="trend-chart__bars">
+                    <div class="trend-chart__bar trend-chart__bar--income" style="height: {{ point.income_width }}%" title="Доход {{ point.income|floatformat:0 }} ₽"></div>
+                    <div class="trend-chart__bar trend-chart__bar--{% if point.profit >= 0 %}profit{% else %}loss{% endif %}" style="height: {{ point.profit_width }}%" title="{% if point.profit >= 0 %}Прибыль{% else %}Убыток{% endif %} {{ point.profit|floatformat:0 }} ₽"></div>
+                </div>
+                <span class="trend-chart__label">{{ point.label }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="reports-legend">
+            <span class="reports-legend__item"><i class="reports-legend__dot reports-legend__dot--income"></i> Доход</span>
+            <span class="reports-legend__item"><i class="reports-legend__dot reports-legend__dot--profit"></i> Прибыль</span>
+        </div>
+        {% else %}
+        <p class="text-muted">Нет данных</p>
+        {% endif %}
+    </div>
+
+    <div class="panel reports-chart-panel">
+        <h3 class="panel__title panel__title--sm">Структура за месяц</h3>
+        {% if dashboard.expense_chart %}
+        <div class="bar-chart">
+            {% for bar in dashboard.expense_chart %}
+            <div class="bar-chart__row">
+                <span class="bar-chart__label">{{ bar.label }}</span>
+                <div class="bar-chart__track">
+                    <div class="bar-chart__fill bar-chart__fill--{% if bar.kind == 'income' %}income{% else %}expense{% endif %}" style="width: {{ bar.width }}%"></div>
+                </div>
+                <span class="bar-chart__value">{{ bar.value_fmt }} ₽</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="panel reports-chart-panel">
+        <h3 class="panel__title panel__title--sm">Оплаты по направлениям</h3>
+        {% if dashboard.payment_charts.by_direction %}
+        <div class="bar-chart">
+            {% for bar in dashboard.payment_charts.by_direction %}
+            <div class="bar-chart__row">
+                <span class="bar-chart__label">{{ bar.label }}</span>
+                <div class="bar-chart__track">
+                    <div class="bar-chart__fill bar-chart__fill--direction" style="width: {{ bar.width }}%"></div>
+                </div>
+                <span class="bar-chart__value">{{ bar.value_fmt }} ₽</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted">Нет оплат за период</p>
+        {% endif %}
+    </div>
+</section>
+
+<section class="reports-tables">
+    <div class="panel panel--table" id="salary">
+        <div class="section-block__head">
+            <h3>Зарплата преподавателей</h3>
+            <span class="text-muted">30% от посещений × цена</span>
+        </div>
+        <div class="table-wrap">
+            <table class="dash-table dash-table--compact">
+                <thead>
+                    <tr>
+                        <th>Преподаватель</th>
+                        <th>Посещений</th>
+                        <th>База</th>
+                        <th>30%</th>
+                        <th class="reports-col-chart"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in dashboard.salary_rows %}
+                    <tr>
+                        <td>{{ row.teacher }}</td>
+                        <td>{{ row.visits }}</td>
+                        <td>{{ row.revenue|floatformat:0 }} ₽</td>
+                        <td><strong>{{ row.salary|floatformat:0 }} ₽</strong></td>
+                        <td class="reports-col-chart">
+                            <div class="inline-bar"><div class="inline-bar__fill" style="width: {{ row.salary_width }}%"></div></div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" class="text-muted text-center">Нет посещений за период</td></tr>
+                    {% endfor %}
+                </tbody>
+                {% if dashboard.salary_rows %}
+                <tfoot>
+                    <tr>
+                        <td><strong>Итого</strong></td>
+                        <td><strong>{{ dashboard.totals.visits }}</strong></td>
+                        <td></td>
+                        <td><strong>{{ dashboard.totals.salary|floatformat:0 }} ₽</strong></td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+
+    <div class="panel panel--table">
+        <div class="section-block__head">
+            <h3>Оплаты по направлениям</h3>
+            <span class="text-muted">Итого {{ dashboard.payments_summary.total|floatformat:0 }} ₽</span>
+        </div>
+        <div class="table-wrap">
+            <table class="dash-table dash-table--compact">
+                <thead>
+                    <tr>
+                        <th>Направление</th>
+                        <th>Учеников</th>
+                        <th>Сумма</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for block in dashboard.by_direction %}
+                    <tr>
+                        <td>{{ block.direction }}</td>
+                        <td>{{ block.students|length }}</td>
+                        <td><strong>{{ block.total|floatformat:0 }} ₽</strong></td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="3" class="text-muted text-center">Нет оплат</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+{% endwith %}
+{% endblock %}

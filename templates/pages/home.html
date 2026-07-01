@@ -1,0 +1,243 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Главная{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/pages/home.css' %}">{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+
+    <!-- Приветствие и поиск -->
+    <section class="home-hero panel">
+        <div class="home-hero__text">
+            <h1 class="home-hero__title">Добрый день{% if user.first_name %}, {{ user.first_name }}{% endif %}!</h1>
+            <p class="home-hero__sub">Сегодня {{ today|date:"d E Y" }} · {{ lessons_today_count }} занятий в расписании</p>
+        </div>
+        <form method="get" action="{% url 'core:student_list' %}" class="home-search">
+            <div class="home-search__field">
+                <span class="home-search__icon">🔍</span>
+                {{ search_form.q }}
+            </div>
+            {{ search_form.direction }}
+            <button type="submit" class="btn btn--primary">Найти ученика</button>
+        </form>
+        <p class="home-search__hint text-muted">Поиск по имени ученика, телефону или ФИО родителя</p>
+    </section>
+
+    <!-- Быстрые действия -->
+    <section class="home-section">
+        <h2 class="home-section__title">Быстрые действия</h2>
+        <div class="home-actions">
+            {% for action in quick_actions %}
+            <a href="{{ action.url }}" class="home-action home-action--{{ action.accent }}">
+                <span class="home-action__icon" aria-hidden="true">{{ action.icon }}</span>
+                <span class="home-action__body">
+                    <span class="home-action__title">{{ action.title }}</span>
+                    <span class="home-action__desc">{{ action.desc }}</span>
+                </span>
+                <span class="home-action__arrow">→</span>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+
+    <!-- Разделы -->
+    <nav class="home-shortcuts" aria-label="Разделы системы">
+        {% for link in nav_shortcuts %}
+        <a href="{{ link.url }}" class="home-shortcuts__link">{{ link.label }}</a>
+        {% endfor %}
+    </nav>
+
+    <!-- Сводка -->
+    <div class="metric-row metric-row--home">
+        <a href="{% url 'core:subscriptions' %}" class="metric-card metric-card--violet metric-card--link">
+            <div class="metric-card__head">
+                <span class="metric-card__label">Активные абонементы</span>
+            </div>
+            <div class="metric-card__value">{{ stats.active_subscriptions }}</div>
+        </a>
+        <a href="{% url 'core:student_list' %}" class="metric-card metric-card--indigo metric-card--link">
+            <div class="metric-card__head">
+                <span class="metric-card__label">Учеников в базе</span>
+            </div>
+            <div class="metric-card__value">{{ stats.students }}</div>
+            <span class="metric-card__note">+{{ stats.new_students }} за месяц</span>
+        </a>
+        {% if is_admin %}
+        <a href="{% url 'core:reports_dashboard' %}" class="metric-card metric-card--purple metric-card--link">
+            <div class="metric-card__head">
+                <span class="metric-card__label">Доход за месяц</span>
+            </div>
+            <div class="metric-card__value">{{ stats.monthly_income|floatformat:0 }} <small>₽</small></div>
+        </a>
+        {% else %}
+        <div class="metric-card metric-card--purple">
+            <div class="metric-card__head">
+                <span class="metric-card__label">Направлений</span>
+            </div>
+            <div class="metric-card__value">{{ stats.directions }}</div>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if is_admin %}
+    <div class="panel home-income-chart">
+        <div class="panel__header panel__header--tight">
+            <div>
+                <h2 class="panel__title">Доход по месяцам</h2>
+                <p class="home-income-chart__sub text-muted">Сумма оплат за последние 6 месяцев, ₽</p>
+            </div>
+            <a href="{% url 'core:reports_dashboard' %}" class="btn btn--ghost btn--sm">Отчёты →</a>
+        </div>
+        {% if income_bars %}
+        <div class="home-column-chart" role="img" aria-label="График доходов за 6 месяцев">
+            {% for bar in income_bars %}
+            <div class="home-column-chart__item" title="{{ bar.label_full }}: {{ bar.value_fmt }} ₽">
+                <span class="home-column-chart__value{% if not bar.value %} home-column-chart__value--empty{% endif %}">
+                    {% if bar.value %}{{ bar.value_fmt }}{% else %}—{% endif %}
+                </span>
+                <div class="home-column-chart__track">
+                    <div class="home-column-chart__fill{% if not bar.value %} home-column-chart__fill--empty{% endif %}"
+                         style="height: {% if bar.value and bar.height_pct < 6 %}6{% else %}{{ bar.height_pct }}{% endif %}%"></div>
+                </div>
+                <span class="home-column-chart__label">{{ bar.label }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted chart-empty">Нет оплат за период</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="dashboard-tables">
+        {% if is_admin %}
+        <div class="panel">
+            <div class="panel__header panel__header--tight">
+                <h2 class="panel__title panel__title--sm">Недавние оплаты</h2>
+                <a href="{% url 'core:payments_report' %}" class="link-entity">Все оплаты →</a>
+            </div>
+            <div class="table-wrap">
+                <table class="dash-table">
+                    <thead>
+                        <tr><th>Ученик</th><th>Дата</th><th>Сумма</th><th>Тип</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for p in recent_payments %}
+                        <tr>
+                            <td><a href="{% url 'core:student_detail' p.student.pk %}" class="link-entity">{{ p.student.name }}</a></td>
+                            <td>{{ p.payment_date|date:"d.m.Y" }}</td>
+                            <td>{{ p.amount|floatformat:0 }} ₽</td>
+                            <td>{{ p.get_payment_type_display }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="text-muted">Пока нет оплат</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="panel {% if not is_admin %}panel--full{% endif %}">
+            <div class="panel__header panel__header--tight">
+                <h2 class="panel__title panel__title--sm">Абонементы к продлению</h2>
+                <a href="{% url 'core:subscriptions' %}" class="link-entity">Все абонементы →</a>
+            </div>
+            <div class="table-wrap">
+                <table class="dash-table">
+                    <thead>
+                        <tr><th>Ученик</th><th>Направление</th><th>Истекает</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                        {% for sub in expiring_subscriptions %}
+                        <tr>
+                            <td><a href="{% url 'core:student_detail' sub.student.pk %}" class="link-entity">{{ sub.student.name }}</a></td>
+                            <td>{{ sub.direction.name }}</td>
+                            <td>{{ sub.end_date|date:"d.m.Y" }}</td>
+                            <td><a href="{% url 'core:student_detail' sub.student.pk %}" class="link-action">Продлить</a></td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="text-muted">Нет истекающих абонементов в ближайшие 2 недели</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Помощь -->
+    <section class="home-help panel">
+        <h2 class="home-section__title home-help__title">Справка: что где делать</h2>
+        <div class="home-help__grid">
+            <details class="home-help__item" open>
+                <summary class="home-help__summary">👦 Ученики</summary>
+                <div class="home-help__content">
+                    <p><strong>Добавить:</strong> «Добавить ученика» или раздел <a href="{% url 'core:student_list' %}">Ученики</a> → «+».</p>
+                    <p><strong>Направления:</strong> в карточке ученика — вкладка «Направления» или при создании.</p>
+                    <p><strong>Абонемент:</strong> карточка ученика → направление → «Пополнить абонемент» (сумма и число занятий).</p>
+                </div>
+            </details>
+            <details class="home-help__item">
+                <summary class="home-help__summary">📅 Расписание и посещения</summary>
+                <div class="home-help__content">
+                    <p><strong>Слоты:</strong> <a href="{% url 'core:schedule' %}?view=week&edit=1">Расписание → Неделя → Редактировать</a> — день, время, преподаватель.</p>
+                    <p><strong>Индивидуальные:</strong> в слоте обязательно выбрать ученика.</p>
+                    <p><strong>Посещения:</strong> <a href="{% url 'core:schedule' %}?view=today">Сегодня</a> — отметить «Был» и «Оплачено», сохранить.</p>
+                    <p><strong>Разовое / отработка:</strong> вкладка «Сегодня» → «+ Разовое / отработка».</p>
+                </div>
+            </details>
+            <details class="home-help__item">
+                <summary class="home-help__summary">🎫 Абонементы</summary>
+                <div class="home-help__content">
+                    <p>Раздел <a href="{% url 'core:subscriptions' %}">Абонементы</a> — все карточки с прогрессом занятий.</p>
+                    <p>Зелёная полоса — остаток занятий. Клик по карточке ведёт к ученику.</p>
+                </div>
+            </details>
+            <details class="home-help__item">
+                <summary class="home-help__summary">👩‍🏫 Преподаватели</summary>
+                <div class="home-help__content">
+                    <p><strong>Карточка:</strong> <a href="{% url 'core:teacher_list' %}">Преподаватели</a> → клик по ФИО.</p>
+                    <p><strong>Зарплата:</strong> вкладка «Зарплата» — фильтр периода и направлений, посещения × цена, 30%.</p>
+                    <p><strong>Направления:</strong> назначить на вкладке «Направления» у преподавателя.</p>
+                </div>
+            </details>
+            {% if is_admin %}
+            <details class="home-help__item">
+                <summary class="home-help__summary">💳 Оплаты</summary>
+                <div class="home-help__content">
+                    <p><strong>Внести:</strong> <a href="{% url 'core:payments_report' %}">Оплаты</a> → раскрыть «+ Добавить оплату».</p>
+                    <p><strong>Редактировать:</strong> «✎ Редактировать» в таблице, изменить суммы и сохранить.</p>
+                    <p><strong>Excel:</strong> кнопка «📥 Excel» — выгрузка по текущим фильтрам.</p>
+                </div>
+            </details>
+            <details class="home-help__item">
+                <summary class="home-help__summary">📊 Отчёты</summary>
+                <div class="home-help__content">
+                    <p><strong>Сводка:</strong> <a href="{% url 'core:reports_dashboard' %}">Отчёты</a> — доходы, расходы, зарплаты, графики за месяц.</p>
+                    <p>Выберите месяц и год вверху страницы.</p>
+                </div>
+            </details>
+            {% endif %}
+            {% if is_admin %}
+            <details class="home-help__item">
+                <summary class="home-help__summary">👤 Сотрудники и доступ</summary>
+                <div class="home-help__content">
+                    <p><strong>Добавить логин:</strong> <a href="/admin/auth/user/add/">Настройки → Пользователи → Добавить</a>.</p>
+                    <p><strong>Директор</strong> — роль «Директор»: оплаты, отчёты, настройки.</p>
+                    <p><strong>Ресепшн</strong> — ученики, расписание, абонементы. Без финансов.</p>
+                    <p>Пароль задаётся при создании пользователя.</p>
+                </div>
+            </details>
+            {% endif %}
+            <details class="home-help__item">
+                <summary class="home-help__summary">🎨 Направления</summary>
+                <div class="home-help__content">
+                    <p><strong>Цены:</strong> <a href="{% url 'core:direction_list' %}">Направления</a> → карточка → цена абонемента, разового, за занятие.</p>
+                    <p>Эти цены используются в расчёте зарплаты преподавателей.</p>
+                </div>
+            </details>
+        </div>
+    </section>
+</div>
+{% endblock %}

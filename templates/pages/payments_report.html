@@ -1,0 +1,221 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load core_extras %}
+
+{% block title %}Оплаты{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/pages/entities.css' %}">
+<link rel="stylesheet" href="{% static 'css/pages/payments.css' %}">
+{% endblock %}
+
+{% block content %}
+<!-- Фильтры -->
+<div class="panel payments-filter-panel">
+    <form method="get" class="payments-filter-form">
+        {% if edit_mode %}<input type="hidden" name="edit" value="1">{% endif %}
+        <div class="payments-filter-form__row">
+            <div class="toolbar__search payments-filter-form__search">
+                <span class="toolbar__search-icon">🔍</span>
+                {{ filter_form.q }}
+            </div>
+            <div class="payments-filter-form__dates">
+                <label>С</label>{{ filter_form.date_from }}
+                <label>По</label>{{ filter_form.date_to }}
+            </div>
+            {{ filter_form.direction }}
+            {{ filter_form.payment_type }}
+            <button type="submit" class="btn btn--primary btn--sm">Применить</button>
+            <a href="{% url 'core:payments_report' %}" class="btn btn--ghost btn--sm">Сбросить</a>
+        </div>
+    </form>
+</div>
+
+<!-- Сводка и действия -->
+<div class="payments-toolbar">
+    {% if show_finance_stats %}
+    <div class="payments-summary">
+        <div class="payments-summary__item">
+            <span class="payments-summary__label">Всего</span>
+            <strong class="payments-summary__value">{{ summary.total|floatformat:0 }} ₽</strong>
+        </div>
+        <div class="payments-summary__item">
+            <span class="payments-summary__label">Записей</span>
+            <strong>{{ summary.count }}</strong>
+        </div>
+        <div class="payments-summary__item">
+            <span class="payments-summary__label">Средняя</span>
+            <strong>{{ summary.avg|floatformat:0 }} ₽</strong>
+        </div>
+    </div>
+    {% endif %}
+    <div class="payments-toolbar__actions">
+        {% if not edit_mode %}
+        <a href="?{% if export_qs %}{{ export_qs }}&{% endif %}edit=1" class="btn btn--primary btn--sm">✎ Редактировать</a>
+        {% endif %}
+        {% if show_finance_stats %}
+        <a href="{% url 'core:payments_export' %}?{{ export_qs }}" class="btn btn--ghost btn--sm">📥 Excel</a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Добавить оплату -->
+<details class="panel payments-add-panel">
+    <summary class="payments-add-panel__summary">+ Добавить оплату</summary>
+    <form method="post" class="payments-add-form">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add_payment">
+        <div class="payments-add-form__grid">
+            {{ add_form.student }}
+            {{ add_form.payment_date }}
+            {{ add_form.amount }}
+            {{ add_form.direction }}
+            {{ add_form.payment_type }}
+            {{ add_form.notes }}
+            <button type="submit" class="btn btn--primary btn--sm">Добавить</button>
+        </div>
+    </form>
+</details>
+
+<!-- Таблица -->
+<div class="panel panel--table">
+    <div class="section-block__head">
+        <h2>Оплаты</h2>
+        <span class="text-muted">{{ payments|length }} записей по фильтрам</span>
+    </div>
+
+    {% if edit_mode %}
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_payments">
+        <div class="table-wrap">
+            <table class="dash-table dash-table--compact">
+                <thead>
+                    <tr>
+                        <th>Дата</th>
+                        <th>Ученик</th>
+                        <th>Направление</th>
+                        <th>Тип</th>
+                        <th>Сумма</th>
+                        <th>Примечание</th>
+                        <th>Удалить</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in payments %}
+                    <tr>
+                        <td><input type="date" name="payment_date_{{ p.pk }}" value="{{ p.payment_date|date:'Y-m-d' }}" class="cell-input cell-input--sm"></td>
+                        <td><a href="{% url 'core:student_detail' p.student_id %}" class="link-entity">{{ p.student.name }}</a></td>
+                        <td>
+                            <select name="payment_direction_{{ p.pk }}" class="cell-input cell-input--sm">
+                                {% for d in directions %}
+                                <option value="{{ d.pk }}" {% if p.direction_id == d.pk %}selected{% endif %}>{{ d.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td>
+                            <select name="payment_type_{{ p.pk }}" class="cell-input cell-input--sm">
+                                {% for val, label in payment_types %}
+                                <option value="{{ val }}" {% if p.payment_type == val %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td><input type="number" name="payment_amount_{{ p.pk }}" value="{{ p.amount|input_number }}" class="cell-input cell-input--num" step="0.01"></td>
+                        <td><input type="text" name="payment_notes_{{ p.pk }}" value="{{ p.notes }}" class="cell-input cell-input--sm"></td>
+                        <td class="col-check"><input type="checkbox" name="payment_delete_{{ p.pk }}"></td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="7" class="text-muted text-center">Нет оплат по фильтрам</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if payments %}
+        <div class="form-actions">
+            <button type="submit" class="btn btn--primary">Сохранить изменения</button>
+            <a href="?{{ export_qs }}" class="btn btn--ghost">Отмена</a>
+        </div>
+        {% endif %}
+    </form>
+    {% else %}
+    <div class="table-wrap">
+        <table class="dash-table dash-table--clickable dash-table--compact">
+            <thead>
+                <tr>
+                    <th>Дата</th>
+                    <th>Ученик</th>
+                    <th>Направление</th>
+                    <th>Тип</th>
+                    <th>Сумма</th>
+                    <th>Примечание</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in payments %}
+                <tr>
+                    <td>{{ p.payment_date|date:"d.m.Y" }}</td>
+                    <td><a href="{% url 'core:student_detail' p.student_id %}" class="link-entity">{{ p.student.name }}</a></td>
+                    <td><a href="{% url 'core:direction_detail' p.direction_id %}" class="link-entity">{{ p.direction.name }}</a></td>
+                    <td><span class="tag tag--pay tag--pay-{{ p.payment_type }}">{{ p.get_payment_type_display }}</span></td>
+                    <td><strong>{{ p.amount|floatformat:0 }} ₽</strong></td>
+                    <td class="cell-note">{{ p.notes|default:"—" }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6" class="text-muted text-center">Нет оплат по выбранным фильтрам</td></tr>
+                {% endfor %}
+            </tbody>
+            {% if payments and show_finance_stats %}
+            <tfoot>
+                <tr class="payments-tfoot">
+                    <td colspan="4"><strong>Итого</strong></td>
+                    <td colspan="2"><strong>{{ summary.total|floatformat:0 }} ₽</strong></td>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+    </div>
+    {% endif %}
+</div>
+
+{% if show_finance_stats %}
+<!-- Графики -->
+<section class="payments-charts">
+    <div class="panel payments-chart-panel">
+        <h3 class="panel__title panel__title--sm">По направлениям</h3>
+        {% if charts.by_direction %}
+        <div class="bar-chart">
+            {% for bar in charts.by_direction %}
+            <div class="bar-chart__row">
+                <a href="{% url 'core:payments_report' %}?{{ export_qs }}&direction={{ bar.direction_id }}" class="bar-chart__label link-entity">{{ bar.label }}</a>
+                <div class="bar-chart__track">
+                    <div class="bar-chart__fill bar-chart__fill--direction" style="width: {{ bar.width }}%"></div>
+                </div>
+                <span class="bar-chart__value">{{ bar.value_fmt }} ₽ <small>({{ bar.percent }}%)</small></span>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted">Нет данных для графика</p>
+        {% endif %}
+    </div>
+
+    <div class="panel payments-chart-panel">
+        <h3 class="panel__title panel__title--sm">По типам оплат</h3>
+        {% if charts.by_type %}
+        <div class="bar-chart">
+            {% for bar in charts.by_type %}
+            <div class="bar-chart__row">
+                <span class="bar-chart__label">{{ bar.label }}</span>
+                <div class="bar-chart__track">
+                    <div class="bar-chart__fill bar-chart__fill--type" style="width: {{ bar.width }}%"></div>
+                </div>
+                <span class="bar-chart__value">{{ bar.value_fmt }} ₽ <small>({{ bar.percent }}%)</small></span>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted">Нет данных для графика</p>
+        {% endif %}
+    </div>
+</section>
+{% endif %}
+{% endblock %}

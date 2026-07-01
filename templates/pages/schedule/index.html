@@ -1,0 +1,351 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Расписание{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/pages/entities.css' %}">
+<link rel="stylesheet" href="{% static 'css/pages/schedule.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="schedule-header">
+    {% csrf_token %}
+    <div class="schedule-tabs">
+        <a href="?view=today&date={{ lesson_date|date:'Y-m-d' }}" class="schedule-tabs__btn {% if view == 'today' %}schedule-tabs__btn--active{% endif %}">Сегодня</a>
+        <a href="?view=week{% if edit_mode %}&edit=1{% endif %}" class="schedule-tabs__btn {% if view == 'week' %}schedule-tabs__btn--active{% endif %}">Неделя</a>
+        <a href="?view=table" class="schedule-tabs__btn {% if view == 'table' %}schedule-tabs__btn--active{% endif %}">Таблица</a>
+    </div>
+    <div class="schedule-header__actions">
+        {% if view == 'week' or view == 'table' %}
+        <a href="{{ edit_toggle_url }}" class="btn btn--ghost btn--sm">
+            {% if edit_mode %}Готово{% else %}✎ Редактировать{% endif %}
+        </a>
+        {% if edit_mode and view == 'table' %}
+        <button type="button" class="btn btn--primary btn--sm" data-modal-open="modal-slot" data-new-slot>+ Занятие</button>
+        {% endif %}
+        {% endif %}
+    </div>
+</div>
+
+{% if view == 'today' %}
+<!-- Сегодня -->
+<div class="today-toolbar">
+    <form method="get" class="toolbar toolbar--inline">
+        <input type="hidden" name="view" value="today">
+        <label>Дата</label>
+        <input type="date" name="date" value="{{ lesson_date|date:'Y-m-d' }}" class="filter-select" onchange="this.form.submit()">
+    </form>
+    <button type="button" class="btn btn--primary btn--sm" data-modal-open="modal-single">+ Разовое / отработка</button>
+    <button type="button" class="btn btn--ghost btn--sm" data-modal-open="modal-exception">Замена / отмена</button>
+</div>
+
+<div class="today-lessons">
+    {% for item in lessons_with_attendance %}
+    {% with lesson=item.lesson rows=item.student_rows %}
+    <div class="lesson-card {% if lesson.is_cancelled %}lesson-card--cancelled{% endif %} {% if lesson.kind != 'regular' %}lesson-card--{{ lesson.kind }}{% endif %}">
+        <div class="lesson-card__head">
+            <div>
+                <span class="lesson-card__time">{{ lesson.start_time|time:"H:i" }}–{{ lesson.end_time|time:"H:i" }}</span>
+                <h3 class="lesson-card__title">{{ lesson.title }}</h3>
+                <p class="lesson-card__meta">
+                    {% if lesson.display_teacher %}{{ lesson.display_teacher.name }}{% else %}—{% endif %}
+                    {% if lesson.is_cancelled %}<span class="badge badge--danger">Отменено</span>{% endif %}
+                    {% if lesson.substitute_teacher %}<span class="badge badge--warn">Замена</span>{% endif %}
+                </p>
+            </div>
+        </div>
+        {% if not lesson.is_cancelled %}
+        <form method="post" action="{% url 'core:schedule_save_attendance' %}" class="attendance-form">
+            {% csrf_token %}
+            <input type="hidden" name="lesson_date" value="{{ lesson_date|date:'Y-m-d' }}">
+            <input type="hidden" name="lesson_key" value="{{ lesson.key }}">
+            <div class="table-wrap">
+                <table class="dash-table dash-table--compact">
+                    <thead>
+                        <tr>
+                            <th>Ученик</th>
+                            <th class="col-check">Был</th>
+                            <th class="col-check">Оплачено</th>
+                            <th>Примечание</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        {% with student=row.student rec=row.record %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'core:student_detail' student.pk %}" class="link-entity">{{ student.name }}</a>
+                                <input type="hidden" name="student_id" value="{{ student.pk }}">
+                            </td>
+                            <td class="col-check">
+                                <input type="checkbox" name="present_{{ student.pk }}" {% if rec and rec.present %}checked{% endif %}>
+                            </td>
+                            <td class="col-check">
+                                <input type="checkbox" name="paid_{{ student.pk }}" {% if rec and rec.paid %}checked{% endif %}>
+                            </td>
+                            <td>
+                                <input type="text" name="note_{{ student.pk }}" value="{% if rec %}{{ rec.note }}{% endif %}" class="cell-input cell-input--sm">
+                            </td>
+                        </tr>
+                        {% endwith %}
+                        {% empty %}
+                        <tr><td colspan="4" class="text-muted">
+                            {% if lesson.direction.lesson_type == 'individual' %}
+                            Ученик не назначен — укажите в <a href="?view=week&edit=1" class="link-entity">расписании</a>
+                            {% else %}
+                            Нет учеников в группе
+                            {% endif %}
+                        </td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if rows %}
+            <div class="form-actions">
+                <button type="submit" class="btn btn--primary btn--sm">Сохранить посещения</button>
+            </div>
+            {% endif %}
+        </form>
+        {% endif %}
+    </div>
+    {% endwith %}
+    {% empty %}
+    <p class="text-muted">На эту дату занятий нет.</p>
+    {% endfor %}
+</div>
+
+{% elif view == 'week' %}
+<!-- Недельная сетка -->
+<div class="week-grid {% if edit_mode %}week-grid--edit{% endif %}" id="week-grid" data-reorder-url="{% url 'core:schedule_reorder' %}">
+    {% for day in week_days %}
+    <div class="week-day" data-day="{{ day.index }}">
+        <div class="week-day__head">{{ day.label }}</div>
+        <ul class="week-day__list" data-day-list="{{ day.index }}">
+            {% for slot in day.slots %}
+            <li class="week-slot" data-slot-id="{{ slot.pk }}"
+                data-direction="{{ slot.direction_id }}"
+                data-day="{{ slot.day_of_week }}"
+                data-start="{{ slot.start_time|time:'H:i' }}"
+                data-end="{{ slot.end_time|time:'H:i' }}"
+                data-teacher="{{ slot.teacher_id|default:'' }}"
+                data-classroom="{{ slot.classroom_id|default:'' }}"
+                data-student="{{ slot.student_id|default:'' }}"
+                data-lesson-type="{{ slot.direction.lesson_type }}"
+                draggable="{% if edit_mode %}true{% else %}false{% endif %}">
+                <div class="week-slot__time">{{ slot.start_time|time:"H:i" }}–{{ slot.end_time|time:"H:i" }}</div>
+                <div class="week-slot__title">{{ slot.direction.name }}</div>
+                <div class="week-slot__meta">
+                    {% if slot.direction.lesson_type == 'individual' %}
+                        {% if slot.student %}{{ slot.student.name }}{% else %}<span class="text-muted">ученик не назначен</span>{% endif %}
+                    {% elif slot.teacher %}{{ slot.teacher.name }}{% endif %}
+                </div>
+                {% if edit_mode %}
+                <div class="week-slot__actions">
+                    <button type="button" class="btn-icon" data-edit-slot="{{ slot.pk }}" title="Редактировать">✎</button>
+                    <form method="post" action="{% url 'core:schedule_slot_duplicate' slot.pk %}" class="inline-form">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-icon" title="Дублировать">⧉</button>
+                    </form>
+                    <form method="post" action="{% url 'core:schedule_slot_delete' slot.pk %}" class="inline-form" onsubmit="return confirm('Удалить слот?')">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-icon btn-icon--danger" title="Удалить">×</button>
+                    </form>
+                </div>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% if edit_mode %}
+        <button type="button" class="btn btn--ghost btn--sm week-day__add" data-add-slot-day="{{ day.index }}">+ Занятие</button>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+{% else %}
+<!-- Табличный вид -->
+<div class="page-toolbar">
+    <form method="get" class="toolbar" action="{% url 'core:schedule' %}">
+        <input type="hidden" name="view" value="table">
+        <div class="toolbar__search">
+            <span class="toolbar__search-icon">🔍</span>
+            {{ search_form.q }}
+        </div>
+        <div class="toolbar__filters">
+            {{ search_form.direction }}
+            <select name="teacher" class="filter-select">
+                <option value="">Все преподаватели</option>
+                {% for t in teachers %}
+                <option value="{{ t.pk }}" {% if request.GET.teacher == t.pk|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>
+                {% endfor %}
+            </select>
+            <select name="day" class="filter-select">
+                <option value="">Все дни</option>
+                {% for val, label in weekday_choices %}
+                <option value="{{ val }}" {% if request.GET.day == val|stringformat:"s" %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn--primary btn--sm">Найти</button>
+            {% if request.GET %}<a href="{% url 'core:schedule' %}?view=table" class="btn btn--ghost btn--sm">Сбросить</a>{% endif %}
+        </div>
+    </form>
+</div>
+
+<div class="panel panel--table">
+    <div class="table-wrap">
+        <table class="dash-table {% if edit_mode %}dash-table--editable{% endif %}">
+            <thead>
+                <tr>
+                    <th>День</th>
+                    <th>Время</th>
+                    <th>Направление</th>
+                    <th>Ученик</th>
+                    <th>Преподаватель</th>
+                    <th>Кабинет</th>
+                    {% if edit_mode %}<th></th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for slot in table_slots %}
+                <tr class="table-slot-row"
+                    data-slot-id="{{ slot.pk }}"
+                    data-direction="{{ slot.direction_id }}"
+                    data-day="{{ slot.day_of_week }}"
+                    data-start="{{ slot.start_time|time:'H:i' }}"
+                    data-end="{{ slot.end_time|time:'H:i' }}"
+                    data-teacher="{{ slot.teacher_id|default:'' }}"
+                    data-classroom="{{ slot.classroom_id|default:'' }}"
+                    data-student="{{ slot.student_id|default:'' }}"
+                    data-lesson-type="{{ slot.direction.lesson_type }}">
+                    <td>{{ slot.get_day_of_week_display }}</td>
+                    <td>{{ slot.start_time|time:"H:i" }}–{{ slot.end_time|time:"H:i" }}</td>
+                    <td><a href="{% url 'core:direction_detail' slot.direction.pk %}" class="link-entity">{{ slot.direction.name }}</a></td>
+                    <td>
+                        {% if slot.direction.lesson_type == 'individual' %}
+                            {% if slot.student %}<a href="{% url 'core:student_detail' slot.student.pk %}" class="link-entity">{{ slot.student.name }}</a>{% else %}<span class="text-muted">—</span>{% endif %}
+                        {% else %}
+                            <span class="text-muted">группа</span>
+                        {% endif %}
+                    </td>
+                    <td>{% if slot.teacher %}<a href="{% url 'core:teacher_detail' slot.teacher.pk %}" class="link-entity">{{ slot.teacher.name }}</a>{% else %}—{% endif %}</td>
+                    <td>{{ slot.classroom.name|default:"—" }}</td>
+                    {% if edit_mode %}
+                    <td class="table-slot-actions">
+                        <button type="button" class="btn-icon" data-edit-slot="{{ slot.pk }}" title="Редактировать">✎</button>
+                        <form method="post" action="{% url 'core:schedule_slot_duplicate' slot.pk %}" class="inline-form">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-icon" title="Дублировать">⧉</button>
+                        </form>
+                        <form method="post" action="{% url 'core:schedule_slot_delete' slot.pk %}" class="inline-form" onsubmit="return confirm('Удалить слот?')">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-icon btn-icon--danger" title="Удалить">×</button>
+                        </form>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% empty %}
+                <tr><td colspan="{% if edit_mode %}7{% else %}6{% endif %}" class="text-muted text-center">Слотов не найдено</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Модалка слота -->
+<div class="modal" id="modal-slot" hidden>
+    <div class="modal__backdrop" data-modal-close></div>
+    <div class="modal__panel">
+        <h3 id="modal-slot-title">Слот расписания</h3>
+        <form method="post" action="{% url 'core:schedule_slot_save' %}" id="slot-form">
+            {% csrf_token %}
+            <input type="hidden" name="slot_id" id="slot_id" value="">
+            <div class="form-grid form-grid--compact">
+                <div class="field">{{ slot_form.direction.label_tag }}{{ slot_form.direction }}</div>
+                <div class="field field--slot-student" id="slot-student-wrap" hidden>
+                    {{ slot_form.student.label_tag }}{{ slot_form.student }}
+                </div>
+                <div class="field">{{ slot_form.day_of_week.label_tag }}{{ slot_form.day_of_week }}</div>
+                <div class="field-row">
+                    <div class="field">{{ slot_form.start_time.label_tag }}{{ slot_form.start_time }}</div>
+                    <div class="field">{{ slot_form.end_time.label_tag }}{{ slot_form.end_time }}</div>
+                </div>
+                <div class="field-row">
+                    <div class="field">{{ slot_form.teacher.label_tag }}{{ slot_form.teacher }}</div>
+                    <div class="field">{{ slot_form.classroom.label_tag }}{{ slot_form.classroom }}</div>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn--primary btn--sm">Сохранить</button>
+                <button type="button" class="btn btn--ghost btn--sm" data-modal-close>Отмена</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Модалка разового -->
+<div class="modal" id="modal-single" hidden>
+    <div class="modal__backdrop" data-modal-close></div>
+    <div class="modal__panel">
+        <h3>Разовое занятие / отработка</h3>
+        <form method="post" action="{% url 'core:schedule_add_single' %}">
+            {% csrf_token %}
+            <div class="form-grid form-grid--compact">
+                <div class="field">{{ single_form.student.label_tag }}{{ single_form.student }}</div>
+                <div class="field">{{ single_form.direction.label_tag }}{{ single_form.direction }}</div>
+                <div class="field">{{ single_form.teacher.label_tag }}{{ single_form.teacher }}</div>
+                <div class="field-row">
+                    <div class="field">{{ single_form.lesson_date.label_tag }}{{ single_form.lesson_date }}</div>
+                    <div class="field">{{ single_form.lesson_type.label_tag }}{{ single_form.lesson_type }}</div>
+                </div>
+                <div class="field-row">
+                    <div class="field">{{ single_form.start_time.label_tag }}{{ single_form.start_time }}</div>
+                    <div class="field">{{ single_form.end_time.label_tag }}{{ single_form.end_time }}</div>
+                </div>
+                <div class="field-row">
+                    <div class="field"><label>{{ single_form.create_payment.label }}</label>{{ single_form.create_payment }}</div>
+                    <div class="field">{{ single_form.payment_amount.label_tag }}{{ single_form.payment_amount }}</div>
+                </div>
+                <div class="field">{{ single_form.notes.label_tag }}{{ single_form.notes }}</div>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn--primary btn--sm">Добавить</button>
+                <button type="button" class="btn btn--ghost btn--sm" data-modal-close>Отмена</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Модалка исключения -->
+<div class="modal" id="modal-exception" hidden>
+    <div class="modal__backdrop" data-modal-close></div>
+    <div class="modal__panel">
+        <h3>Замена / отмена занятия</h3>
+        <form method="post" action="{% url 'core:schedule_add_exception' %}">
+            {% csrf_token %}
+            <div class="form-grid form-grid--compact">
+                <div class="field">{{ exception_form.lesson_date.label_tag }}{{ exception_form.lesson_date }}</div>
+                <div class="field">{{ exception_form.schedule_slot.label_tag }}{{ exception_form.schedule_slot }}</div>
+                <div class="field">{{ exception_form.exception_type.label_tag }}{{ exception_form.exception_type }}</div>
+                <div class="field">{{ exception_form.substitute_teacher.label_tag }}{{ exception_form.substitute_teacher }}</div>
+                <div class="field">{{ exception_form.notes.label_tag }}{{ exception_form.notes }}</div>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn--primary btn--sm">Сохранить</button>
+                <button type="button" class="btn btn--ghost btn--sm" data-modal-close>Отмена</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    window.SCHEDULE_CONFIG = {
+        directionTypes: {{ direction_types_json|safe }},
+        studentsUrl: "{% url 'core:schedule_direction_students' %}",
+    };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script src="{% static 'js/schedule.js' %}"></script>
+{% endblock %}

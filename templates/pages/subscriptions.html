@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Абонементы{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/pages/entities.css' %}">{% endblock %}
+
+{% block content %}
+<div class="page-toolbar">
+    {% include 'components/search_bar.html' with action_url=request.path clear_url=request.path %}
+</div>
+<p class="list-meta">Карточек: <strong>{{ total_count }}</strong> · текущий месяц</p>
+
+<div class="cards-grid">
+    {% for card in cards %}
+        {% include 'components/subscription_card.html' %}
+    {% empty %}
+    <p class="text-muted">Нет данных. <a href="{% url 'core:student_list' %}">Добавьте учеников</a> и оформите абонементы.</p>
+    {% endfor %}
+</div>
+{% endblock %}

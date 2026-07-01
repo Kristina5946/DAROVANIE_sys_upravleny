@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Направления{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/pages/entities.css' %}">{% endblock %}
+
+{% block content %}
+<div class="page-toolbar">
+    <form method="get" class="toolbar" action="{% url 'core:direction_list' %}">
+        <div class="toolbar__search">
+            <span class="toolbar__search-icon">🔍</span>
+            <input type="text" name="q" class="search-input" placeholder="Название, описание…"
+                   value="{{ search_form.q.value|default:'' }}">
+        </div>
+        <div class="toolbar__filters">
+            <select name="lesson_type" class="filter-select">
+                <option value="">Все форматы</option>
+                {% for val, label in lesson_types %}
+                <option value="{{ val }}" {% if search_form.lesson_type.value == val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn--primary btn--sm">Найти</button>
+            {% if request.GET %}<a href="{% url 'core:direction_list' %}" class="btn btn--ghost btn--sm">Сбросить</a>{% endif %}
+        </div>
+    </form>
+    <a href="{% url 'core:direction_create' %}" class="btn btn--primary">+ Направление</a>
+</div>
+
+<p class="list-meta">Найдено: <strong>{{ total_count }}</strong> · двойной клик — открыть направление</p>
+
+<div class="panel panel--table">
+    <div class="table-wrap">
+        <table class="dash-table dash-table--clickable dash-table--directions">
+            <thead>
+                <tr>
+                    <th>Название</th>
+                    <th>Формат</th>
+                    <th>За занятие (абон.)</th>
+                    <th>Разовое</th>
+                    <th>Абонемент/мес</th>
+                    <th>Описание</th>
+                    <th>Учеников</th>
+                    <th>Абонементов</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in directions %}
+                <tr data-href="{% url 'core:direction_detail' d.pk %}">
+                    <td><strong>{{ d.name }}</strong></td>
+                    <td>
+                        <span class="tag tag--{% if d.lesson_type == 'individual' %}ind{% else %}grp{% endif %}">
+                            {{ d.get_lesson_type_display }}
+                        </span>
+                    </td>
+                    <td>{{ d.price_per_lesson|floatformat:0 }} ₽</td>
+                    <td>{{ d.single_lesson_cost|floatformat:0 }} ₽</td>
+                    <td>{{ d.subscription_cost|floatformat:0 }} ₽</td>
+                    <td class="cell-desc">{{ d.description|truncatewords:8|default:"—" }}</td>
+                    <td>
+                        <a href="{% url 'core:student_list' %}?direction={{ d.pk }}" onclick="event.stopPropagation()">
+                            {{ d.students_count }}
+                        </a>
+                    </td>
+                    <td>{{ d.active_subs_count }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="8" class="text-muted text-center">Нет направлений</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/table-rows.js' %}"></script>
+{% endblock %}

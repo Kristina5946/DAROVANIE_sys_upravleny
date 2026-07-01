@@ -1,0 +1,51 @@
+{% load core_extras %}
+<article class="subscription-card subscription-card--{{ card.color }}">
+    <header class="subscription-card__header">
+        <h3 class="subscription-card__student">
+            {% if card.subscription %}
+                <a href="{% url 'core:student_detail' card.subscription.student.pk %}" class="link-entity">
+                    {{ card.subscription.student.name }}
+                </a>
+            {% elif card.student %}
+                <a href="{% url 'core:student_detail' card.student.pk %}" class="link-entity">
+                    {{ card.student.name }}
+                </a>
+            {% endif %}
+        </h3>
+        <span class="subscription-card__direction">
+            {% if card.subscription %}
+                <a href="{% url 'core:student_list' %}?direction={{ card.subscription.direction.pk }}">{{ card.subscription.direction.name }}</a>
+            {% elif card.direction %}
+                <a href="{% url 'core:student_list' %}?direction={{ card.direction.pk }}">{{ card.direction.name }}</a>
+            {% endif %}
+        </span>
+    </header>
+
+    {% if card.subscription %}
+    <div class="subscription-card__period">
+        {{ card.subscription.start_date|date:"d.m.Y" }} — {{ card.subscription.end_date|date:"d.m.Y" }}
+    </div>
+
+    <div class="progress-bar">
+        <div class="progress-bar__fill progress-bar__fill--{{ card.color }}"
+             style="width: {{ card.percent }}%"></div>
+    </div>
+    <div class="progress-bar__label">
+        Посещено <strong>{{ card.used }}</strong> из <strong>{{ card.total }}</strong>
+        {% if card.remaining %}· осталось <strong>{{ card.remaining }}</strong>{% endif %}
+    </div>
+
+    <div class="subscription-card__finance">
+        <span>Оплачено: <strong>{{ card.amount_paid|floatformat:0 }} ₽</strong></span>
+        <span>Использовано: {{ card.amount_used|floatformat:0 }} ₽</span>
+        <span>Остаток: <strong>{{ card.balance|floatformat:0 }} ₽</strong></span>
+    </div>
+
+    <a href="{% url 'core:student_detail' card.subscription.student.pk %}" class="subscription-card__link">Открыть карточку →</a>
+    {% else %}
+    <p class="subscription-card__empty">Нет абонемента на этот месяц</p>
+    {% if card.student %}
+    <a href="{% url 'core:student_detail' card.student.pk %}" class="subscription-card__link">Оформить →</a>
+    {% endif %}
+    {% endif %}
+</article>

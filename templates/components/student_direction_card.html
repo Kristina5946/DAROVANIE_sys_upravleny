@@ -1,0 +1,68 @@
+{% load core_extras %}
+<article class="dir-card dir-card--{{ card.color }}">
+    <header class="dir-card__header">
+        <h3 class="dir-card__title">{{ card.direction.name }}</h3>
+        {% if card.has_subscription %}
+        <span class="dir-card__badge dir-card__badge--active">Активен</span>
+        {% else %}
+        <span class="dir-card__badge">Нет абонемента</span>
+        {% endif %}
+    </header>
+
+    {% if card.subscription %}
+    <p class="dir-card__period">
+        {{ card.subscription.start_date|date:"d.m.Y" }} — {{ card.subscription.end_date|date:"d.m.Y" }}
+    </p>
+
+    <div class="progress-bar">
+        <div class="progress-bar__fill progress-bar__fill--{{ card.color }}" style="width: {{ card.percent }}%"></div>
+    </div>
+    <p class="progress-bar__label">
+        <strong>{{ card.used }}</strong> из <strong>{{ card.total }}</strong> занятий
+        {% if card.remaining %}· осталось <strong>{{ card.remaining }}</strong>{% endif %}
+    </p>
+
+    <div class="dir-card__amounts">
+        <div class="dir-card__amount-row">
+            <span>Оплачено</span>
+            <strong>{{ card.amount_paid|floatformat:0 }} ₽</strong>
+        </div>
+        <div class="dir-card__amount-row">
+            <span>Использовано</span>
+            <span>{{ card.amount_used|floatformat:0 }} ₽</span>
+        </div>
+        <div class="dir-card__amount-row dir-card__amount-row--highlight">
+            <span>Остаток</span>
+            <strong>{{ card.balance|floatformat:0 }} ₽</strong>
+        </div>
+    </div>
+    {% else %}
+    <p class="dir-card__empty">Абонемент не оформлен</p>
+    {% endif %}
+
+    <details class="topup-panel" {% if not card.has_subscription %}open{% endif %}>
+        <summary class="topup-panel__toggle">{% if card.has_subscription %}Пополнить{% else %}Оформить абонемент{% endif %}</summary>
+        <form method="post" class="topup-form" data-direction-id="{{ card.direction.id }}"
+              data-price-per-lesson="{{ card.direction.price_per_lesson }}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="top_up">
+            <input type="hidden" name="direction" value="{{ card.direction.id }}">
+            <div class="topup-form__row">
+                <label>Занятий</label>
+                <input type="number" name="lessons_count" class="field-input topup-lessons"
+                       value="{{ card.suggested_lessons|default:8 }}" min="1" max="50" required>
+            </div>
+            <div class="topup-form__row">
+                <label>Сумма, ₽</label>
+                <input type="number" name="amount" class="field-input topup-amount" step="0.01"
+                       value="{{ card.suggested_amount|default:card.direction.subscription_cost|input_number }}" required>
+                <span class="topup-hint text-muted">Подсказка: <span class="topup-suggested">{{ card.suggested_amount|default:0 }}</span> ₽</span>
+            </div>
+            <div class="topup-form__row">
+                <label>Дата оплаты</label>
+                <input type="date" name="payment_date" class="field-input" value="{% now 'Y-m-d' %}">
+            </div>
+            <button type="submit" class="btn btn--primary btn--block btn--sm">Сохранить оплату</button>
+        </form>
+    </details>
+</article>

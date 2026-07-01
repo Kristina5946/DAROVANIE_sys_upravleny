@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+
+{% block title %}Прибыль — {{ site_name }}{% endblock %}
+
+{% block content %}
+<p class="text-muted" style="margin:0 0 1.25rem">{{ report.month }}.{{ report.year }}</p>
+
+<div class="profit-summary profit-summary--{% if report.is_profit %}profit{% else %}loss{% endif %}">
+    <div class="profit-summary__item">
+        <span class="profit-summary__label">Доходы (оплаты)</span>
+        <span class="profit-summary__value">{{ report.income|floatformat:0 }} ₽</span>
+    </div>
+    <div class="profit-summary__item">
+        <span class="profit-summary__label">Закупки материалов</span>
+        <span class="profit-summary__value">−{{ report.expenses_materials|floatformat:0 }} ₽</span>
+    </div>
+    <div class="profit-summary__item">
+        <span class="profit-summary__label">Зарплаты</span>
+        <span class="profit-summary__value">−{{ report.expenses_salary|floatformat:0 }} ₽</span>
+    </div>
+    <div class="profit-summary__item profit-summary__item--total">
+        <span class="profit-summary__label">{% if report.is_profit %}Прибыль{% else %}Убыток{% endif %}</span>
+        <span class="profit-summary__value">{{ report.profit|floatformat:0 }} ₽</span>
+    </div>
+</div>
+{% endblock %}

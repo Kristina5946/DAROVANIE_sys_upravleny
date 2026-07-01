@@ -1,0 +1,160 @@
+.subscription-card {
+    background: var(--color-surface, #fff);
+    border-radius: 16px;
+    padding: 1.25rem;
+    border: 1px solid #eceaf3;
+    box-shadow: 0 4px 24px rgba(109, 40, 217, 0.08);
+    border-left: 4px solid #ddd6fe;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.subscription-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(124, 58, 237, 0.18);
+}
+
+.subscription-card--success {
+    border-left-color: #10b981;
+    box-shadow: 0 4px 24px rgba(16, 185, 129, 0.12);
+}
+
+.subscription-card--warning {
+    border-left-color: #f59e0b;
+    box-shadow: 0 4px 24px rgba(245, 158, 11, 0.12);
+}
+
+.subscription-card--danger {
+    border-left-color: #ef4444;
+    box-shadow: 0 4px 24px rgba(239, 68, 68, 0.12);
+}
+
+.subscription-card--muted {
+    border-left-color: #c4b5fd;
+    opacity: 0.9;
+}
+
+.subscription-card__header {
+    margin-bottom: 0.75rem;
+}
+
+.subscription-card__student {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.subscription-card__direction {
+    font-size: 0.9rem;
+    color: #8b8a9a;
+}
+
+.subscription-card__period {
+    font-size: 0.8rem;
+    color: #a8a7b5;
+    margin-bottom: 0.75rem;
+}
+
+.subscription-card__finance {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+    color: #8b8a9a;
+}
+
+.subscription-card__empty {
+    color: #a8a7b5;
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+.progress-bar {
+    height: 8px;
+    background: #ede9fe;
+    border-radius: 99px;
+    overflow: hidden;
+    margin: 0.5rem 0;
+}
+
+.progress-bar__fill {
+    height: 100%;
+    border-radius: 99px;
+    transition: width 0.4s ease;
+}
+
+.progress-bar__fill--success {
+    background: linear-gradient(90deg, #7c3aed, #a78bfa);
+}
+
+.progress-bar__fill--warning {
+    background: linear-gradient(90deg, #6d28d9, #c084fc);
+}
+
+.progress-bar__fill--danger {
+    background: linear-gradient(90deg, #5b21b6, #9333ea);
+}
+
+.progress-bar__fill--muted {
+    background: linear-gradient(90deg, #c4b5fd, #ddd6fe);
+}
+
+.subscription-card__direction a {
+    color: #8b8a9a;
+    text-decoration: none;
+}
+
+.subscription-card__direction a:hover {
+    color: #7c3aed;
+}
+
+.subscription-card__link {
+    display: inline-block;
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #7c3aed;
+    text-decoration: none;
+}
+
+.subscription-card__link:hover {
+    text-decoration: underline;
+}
+
+.attendance-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 0.75rem 0;
+}
+
+.attendance-day {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.attendance-day--future {
+    background: #ede9fe;
+    color: #a78bfa;
+}
+
+.attendance-day--present {
+    background: linear-gradient(135deg, #7c3aed, #a78bfa);
+    color: #fff;
+}
+
+.attendance-day--absent {
+    background: #fce7f3;
+    color: #9d174d;
+}
+
+.attendance-day--sick {
+    background: linear-gradient(135deg, #ddd6fe, #c4b5fd);
+    color: #5b21b6;
+}

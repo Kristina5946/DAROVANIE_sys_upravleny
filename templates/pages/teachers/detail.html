@@ -1,0 +1,390 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ teacher.name }}{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/pages/entities.css' %}">
+<link rel="stylesheet" href="{% static 'css/pages/teachers.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page-actions">
+    <a href="{% url 'core:teacher_list' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="btn btn--ghost">← Преподаватели</a>
+    {% if not edit_mode %}
+    <a href="?tab={{ active_tab }}&edit=1{{ filter_suffix }}" class="btn btn--primary btn--sm">✎ Редактировать профиль</a>
+    {% endif %}
+</div>
+
+<div class="profile-hero">
+    <div class="profile-hero__avatar">{{ teacher.name|slice:":1" }}</div>
+    <div class="profile-hero__info">
+        {% if edit_mode and form %}
+        <form method="post" class="entity-form entity-form--inline">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save_teacher">
+            <div class="form-grid form-grid--compact">
+                <div class="field"><label>ФИО</label>{{ form.name }}</div>
+                <div class="field-row">
+                    <div class="field"><label>Телефон</label>{{ form.phone }}</div>
+                    <div class="field"><label>Email</label>{{ form.email }}</div>
+                </div>
+                <div class="field-row">
+                    <div class="field"><label>Дата приёма</label>{{ form.hire_date }}</div>
+                </div>
+                <div class="field"><label>Заметки</label>{{ form.notes }}</div>
+            </div>
+            <p class="text-muted teacher-hint">Направления редактируются на вкладке «Направления».</p>
+            <div class="form-actions">
+                <button type="submit" class="btn btn--primary btn--sm">Сохранить</button>
+                <a href="{% url 'core:teacher_detail' teacher.pk %}?tab={{ active_tab }}{{ filter_suffix }}" class="btn btn--ghost btn--sm">Отмена</a>
+            </div>
+        </form>
+        {% else %}
+        <h2 class="profile-hero__name">{{ teacher.name }}</h2>
+        <p class="profile-hero__meta">
+            {% if teacher.hire_date %}Принят {{ teacher.hire_date|date:"d.m.Y" }}{% endif %}
+        </p>
+        <div class="teacher-contacts">
+            {% if teacher.phone %}
+            <span class="teacher-contacts__item">📞 <a href="tel:{{ teacher.phone }}">{{ teacher.phone }}</a></span>
+            {% endif %}
+            {% if teacher.email %}
+            <span class="teacher-contacts__item">📧 <a href="mailto:{{ teacher.email }}">{{ teacher.email }}</a></span>
+            {% endif %}
+        </div>
+        {% if teacher.notes %}
+        <p class="teacher-notes">{{ teacher.notes }}</p>
+        {% endif %}
+        <div class="tag-list teacher-directions-preview">
+            {% for d in teacher.directions.all %}
+            <a href="{% url 'core:direction_detail' d.pk %}" class="tag">{{ d.name }}</a>
+            {% empty %}
+            <span class="text-muted">Направления не назначены</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="panel teacher-filter-panel">
+    <form method="get" class="teacher-filter-form">
+        <input type="hidden" name="tab" value="{{ active_tab }}">
+        <div class="teacher-filter-form__row">
+            <span class="teacher-filter-form__label">Период</span>
+            {{ filter_form.date_from }}
+            <span class="text-muted">—</span>
+            {{ filter_form.date_to }}
+            <button type="submit" class="btn btn--primary btn--sm">Применить</button>
+            <a href="{% url 'core:teacher_detail' teacher.pk %}?tab={{ active_tab }}" class="btn btn--ghost btn--sm">Сбросить</a>
+        </div>
+        {% if teacher_directions %}
+        <div class="teacher-filter-form__directions">
+            <span class="teacher-filter-form__label">Направления</span>
+            <div class="teacher-filter-directions">
+                {% for checkbox in filter_form.directions %}
+                <label class="teacher-filter-directions__item">{{ checkbox.tag }} {{ checkbox.choice_label }}</label>
+                {% endfor %}
+            </div>
+            <p class="text-muted teacher-filter-hint">Ничего не выбрано — все направления преподавателя</p>
+        </div>
+        {% endif %}
+    </form>
+</div>
+
+<div class="tabs" data-tabs>
+    <div class="tabs__nav">
+        <a href="?tab=salary{{ filter_suffix }}" class="tabs__btn {% if active_tab == 'salary' %}tabs__btn--active{% endif %}">Зарплата</a>
+        <a href="?tab=attendance{{ filter_suffix }}" class="tabs__btn {% if active_tab == 'attendance' %}tabs__btn--active{% endif %}">Посещения</a>
+        <a href="?tab=extras{{ filter_suffix }}" class="tabs__btn {% if active_tab == 'extras' %}tabs__btn--active{% endif %}">Замены и отработки</a>
+        <a href="?tab=directions{{ filter_suffix }}" class="tabs__btn {% if active_tab == 'directions' %}tabs__btn--active{% endif %}">Направления</a>
+    </div>
+
+    {% if active_tab == 'salary' %}
+
+    <div class="teacher-metrics teacher-metrics--simple">
+        <button type="button" class="metric-card metric-card--clickable" data-modal-open="visits-modal">
+            <div class="metric-card__head"><span class="metric-card__label">Посещений</span></div>
+            <div class="metric-card__value">{{ report.total_visits }}</div>
+            <span class="teacher-metric-hint">клик — детализация по ученикам</span>
+        </button>
+        <div class="metric-card">
+            <div class="metric-card__head"><span class="metric-card__label">Сумма (посещ. × цена)</span></div>
+            <div class="metric-card__value">{{ report.total_revenue|floatformat:0 }} <small>₽</small></div>
+        </div>
+        <div class="metric-card metric-card--violet teacher-salary-card">
+            <div class="metric-card__head"><span class="metric-card__label">{{ report.salary_percent|floatformat:0 }}% от суммы</span></div>
+            <div class="metric-card__value teacher-salary-card__value">{{ report.total_at_percent|floatformat:0 }} <small>₽</small></div>
+        </div>
+    </div>
+    <p class="list-meta">
+        {{ report.date_from|date:"d.m.Y" }} — {{ report.date_to|date:"d.m.Y" }}
+        · абонемент — цена занятия в абонементе, разовое — разовая цена
+        · <a href="{% url 'core:schedule' %}?view=today" class="link-entity">отметить посещения →</a>
+    </p>
+
+    {% for block in report.directions %}
+    <div class="panel teacher-dir-panel">
+        <div class="teacher-dir-panel__head">
+            <div>
+                <h3 class="teacher-dir-panel__title">
+                    <a href="{% url 'core:direction_detail' block.direction_id %}" class="link-entity">{{ block.direction_name }}</a>
+                </h3>
+                <p class="text-muted teacher-dir-panel__sub">
+                    {{ block.student_visits }} посещ. · <strong>{{ block.revenue|floatformat:0 }} ₽</strong>
+                </p>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table class="dash-table dash-table--compact">
+                <thead>
+                    <tr>
+                        <th>Ученик</th>
+                        <th>Посещений</th>
+                        <th>Оплаченных</th>
+                        <th>Начислено</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in block.students %}
+                    <tr>
+                        <td><a href="{% url 'core:student_detail' s.id %}" class="link-entity">{{ s.name }}</a></td>
+                        <td>{{ s.visits }}</td>
+                        <td>{{ s.paid_visits }}</td>
+                        <td>{{ s.revenue|floatformat:0 }} ₽</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4" class="text-muted">Нет посещений за период</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% empty %}
+    <div class="panel"><p class="text-muted">Нет данных за выбранный период. Проверьте направления и отметки посещений в расписании.</p></div>
+    {% endfor %}
+
+    {% if report.transfers %}
+    <div class="panel teacher-dir-panel">
+        <h3 class="teacher-dir-panel__title">Переносы <span class="text-muted">(отдельно от посещений)</span></h3>
+        <div class="table-wrap">
+            <table class="dash-table dash-table--compact">
+                <thead>
+                    <tr><th>Дата</th><th>Ученик</th><th>Направление</th><th>Тип</th><th>Сумма</th><th>Примечание</th></tr>
+                </thead>
+                <tbody>
+                    {% for t in report.transfers %}
+                    <tr>
+                        <td>{{ t.date|date:"d.m.Y" }}</td>
+                        <td><a href="{% url 'core:student_detail' t.student_id %}" class="link-entity">{{ t.student }}</a></td>
+                        <td><a href="{% url 'core:direction_detail' t.direction_id %}" class="link-entity">{{ t.direction }}</a></td>
+                        <td>{{ t.type }}</td>
+                        <td>{{ t.amount|floatformat:0 }} ₽</td>
+                        <td>{{ t.notes|default:"—" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="modal" id="visits-modal" hidden>
+        <div class="modal__backdrop" data-modal-close></div>
+        <div class="modal__dialog modal__dialog--wide">
+            <div class="modal__header">
+                <h3>Посещения по ученикам</h3>
+                <button type="button" class="modal__close" data-modal-close aria-label="Закрыть">×</button>
+            </div>
+            <p class="text-muted modal__sub">
+                {{ report.date_from|date:"d.m.Y" }} — {{ report.date_to|date:"d.m.Y" }}
+            </p>
+            <div class="table-wrap">
+                <table class="dash-table dash-table--compact">
+                    <thead>
+                        <tr>
+                            <th>Ученик</th>
+                            <th>Посещений</th>
+                            <th>Оплаченных</th>
+                            <th>Всего записей</th>
+                            <th>Начислено</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in report.students_summary %}
+                        <tr>
+                            <td><a href="{% url 'core:student_detail' s.id %}" class="link-entity">{{ s.name }}</a></td>
+                            <td>{{ s.visits }}</td>
+                            <td>{{ s.paid_visits }}</td>
+                            <td>{{ s.total_records }}</td>
+                            <td>{{ s.revenue|floatformat:0 }} ₽</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5" class="text-muted text-center">Нет посещений за период</td></tr>
+                        {% endfor %}
+                    </tbody>
+                    {% if report.students_summary %}
+                    <tfoot>
+                        <tr>
+                            <td><strong>Итого</strong></td>
+                            <td><strong>{{ report.total_visits }}</strong></td>
+                            <td colspan="2"></td>
+                            <td><strong>{{ report.total_revenue|floatformat:0 }} ₽</strong></td>
+                        </tr>
+                    </tfoot>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {% elif active_tab == 'attendance' %}
+    <div class="panel panel--table">
+        <div class="section-block__head">
+            <h3>Журнал посещений</h3>
+            <span class="text-muted">{{ attendance_log|length }} записей</span>
+        </div>
+        <div class="table-wrap">
+            <table class="dash-table dash-table--compact">
+                <thead>
+                    <tr>
+                        <th>Дата</th>
+                        <th>Время</th>
+                        <th>Ученик</th>
+                        <th>Направление</th>
+                        <th>Тип</th>
+                        <th>Был</th>
+                        <th>Оплачено</th>
+                        <th>Сумма</th>
+                        <th>Примечание</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in attendance_log %}
+                    <tr class="{% if row.present %}att-row--present{% else %}att-row--absent{% endif %}">
+                        <td>{{ row.date|date:"d.m.Y" }}</td>
+                        <td>{{ row.time }}</td>
+                        <td><a href="{% url 'core:student_detail' row.student_id %}" class="link-entity">{{ row.student_name }}</a></td>
+                        <td><a href="{% url 'core:direction_detail' row.direction_id %}" class="link-entity">{{ row.direction_name }}</a></td>
+                        <td><span class="tag tag--sm">{{ row.lesson_type }}</span></td>
+                        <td>{% if row.present %}<span class="att-yes">Да</span>{% else %}<span class="att-no">Нет</span>{% endif %}</td>
+                        <td>{% if row.paid %}<span class="att-yes">Да</span>{% else %}<span class="att-no">Нет</span>{% endif %}</td>
+                        <td>{% if row.present %}{{ row.amount|floatformat:0 }} ₽{% else %}—{% endif %}</td>
+                        <td class="cell-note">{{ row.note|default:"—" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="9" class="text-muted text-center">Нет записей за период</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% elif active_tab == 'extras' %}
+    <div class="panel">
+        <div class="section-block__head">
+            <h3>Замены и отработки</h3>
+            <a href="{% url 'core:schedule' %}?view=today" class="btn btn--ghost btn--sm">+ Добавить в расписании</a>
+        </div>
+        <div class="table-wrap">
+            <table class="dash-table dash-table--compact">
+                <thead>
+                    <tr>
+                        <th>Дата</th>
+                        <th>Тип</th>
+                        <th>Детали</th>
+                        <th>Ученик</th>
+                        <th>Направление</th>
+                        <th>Был?</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in extras %}
+                    <tr>
+                        <td>{{ row.date|date:"d.m.Y" }}</td>
+                        <td>
+                            <span class="tag tag--{% if row.type_code == 'substitution' %}warn{% elif row.type_code == 'makeup' %}ok{% else %}ind{% endif %}">
+                                {{ row.type }}
+                            </span>
+                        </td>
+                        <td>{{ row.details }}</td>
+                        <td>
+                            {% if row.student_id %}
+                            <a href="{% url 'core:student_detail' row.student_id %}" class="link-entity">{{ row.student_name }}</a>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td><a href="{% url 'core:direction_detail' row.direction_id %}" class="link-entity">{{ row.direction_name }}</a></td>
+                        <td>
+                            {% if row.present is None %}—
+                            {% elif row.present %}<span class="att-yes">Да</span>
+                            {% else %}<span class="att-no">Нет</span>{% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="6" class="text-muted text-center">Нет замен и отработок за период</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% elif active_tab == 'directions' %}
+    <div class="teacher-directions-manage">
+        {% if available_directions %}
+        <form method="post" action="{% url 'core:teacher_assign_direction' teacher.pk %}" class="panel teacher-add-direction">
+            {% csrf_token %}
+            <input type="hidden" name="tab" value="directions">
+            <label class="teacher-add-direction__label">Добавить направление</label>
+            <div class="teacher-add-direction__row">
+                <select name="direction_id" class="filter-select" required>
+                    {% for d in available_directions %}
+                    <option value="{{ d.pk }}">{{ d.name }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn--primary btn--sm">Добавить</button>
+            </div>
+        </form>
+        {% endif %}
+
+        <div class="dir-cards-grid">
+            {% for block in students_by_direction %}
+            <div class="dir-card dir-card--teacher">
+                <div class="dir-card__header">
+                    <h4 class="dir-card__title">
+                        <a href="{% url 'core:direction_detail' block.direction.pk %}" class="link-entity">{{ block.direction.name }}</a>
+                    </h4>
+                    <span class="dir-card__badge">{{ block.students_count }} уч.</span>
+                </div>
+                <p class="dir-card__period">
+                    {{ block.direction.price_per_lesson|floatformat:0 }} ₽/зан. ·
+                    разовое {{ block.direction.single_lesson_cost|floatformat:0 }} ₽
+                </p>
+                <ul class="teacher-student-list">
+                    {% for s in block.students %}
+                    <li><a href="{% url 'core:student_detail' s.pk %}">{{ s.name }}</a></li>
+                    {% empty %}
+                    <li class="text-muted">Нет учеников</li>
+                    {% endfor %}
+                </ul>
+                {% if block.direction in teacher.directions.all %}
+                <form method="post" action="{% url 'core:teacher_remove_direction' teacher.pk %}" class="teacher-remove-dir" onsubmit="return confirm('Убрать направление у преподавателя?')">
+                    {% csrf_token %}
+                    <input type="hidden" name="direction_id" value="{{ block.direction.pk }}">
+                    <input type="hidden" name="tab" value="directions">
+                    <button type="submit" class="btn btn--ghost btn--sm btn--danger-text">Убрать направление</button>
+                </form>
+                {% endif %}
+            </div>
+            {% empty %}
+            <div class="panel">
+                <p class="text-muted">Нет направлений. Добавьте через форму выше или назначьте слоты в <a href="{% url 'core:schedule' %}?view=week" class="link-entity">расписании</a>.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/teacher-detail.js' %}"></script>
+{% endblock %}

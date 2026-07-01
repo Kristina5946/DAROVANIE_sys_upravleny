@@ -1,0 +1,215 @@
+/* Страница оплат */
+
+.payments-filter-panel {
+    margin-bottom: 1rem;
+    padding: 1rem 1.25rem;
+}
+
+.payments-filter-form__row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    align-items: center;
+}
+
+.payments-filter-form__search {
+    flex: 1;
+    min-width: 200px;
+    position: relative;
+}
+
+.payments-filter-form__dates {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    color: var(--color-muted);
+}
+
+.payments-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.payments-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+}
+
+.payments-summary__item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.payments-summary__label {
+    font-size: 0.8rem;
+    color: var(--color-muted);
+}
+
+.payments-summary__value {
+    font-size: 1.35rem;
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.payments-toolbar__actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.payments-add-panel {
+    margin-bottom: 1rem;
+    padding: 0;
+    overflow: hidden;
+}
+
+.payments-add-panel__summary {
+    padding: 0.85rem 1.25rem;
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--violet-700);
+    list-style: none;
+}
+
+.payments-add-panel__summary::-webkit-details-marker {
+    display: none;
+}
+
+.payments-add-form {
+    padding: 0 1.25rem 1rem;
+    border-top: 1px solid var(--color-border);
+}
+
+.payments-add-form__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 0.5rem;
+    align-items: end;
+    margin-top: 0.75rem;
+}
+
+.payments-tfoot td {
+    border-top: 2px solid var(--violet-200);
+    padding-top: 0.75rem;
+}
+
+.tag--pay {
+    font-size: 0.72rem;
+}
+
+.tag--pay-subscription {
+    background: var(--violet-100);
+    color: var(--violet-800);
+}
+
+.tag--pay-single {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.tag--pay-trial {
+    background: #fef3c7;
+    color: #b45309;
+}
+
+.tag--pay-transfer_debit,
+.tag--pay-transfer_credit {
+    background: #f3f4f6;
+    color: #4b5563;
+}
+
+.tag--pay-other {
+    background: #f3f4f6;
+    color: #6b7280;
+}
+
+/* Графики */
+.payments-charts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+@media (max-width: 900px) {
+    .payments-charts {
+        grid-template-columns: 1fr;
+    }
+}
+
+.payments-chart-panel {
+    min-height: 200px;
+}
+
+.bar-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    margin-top: 0.75rem;
+}
+
+.bar-chart__row {
+    display: grid;
+    grid-template-columns: minmax(100px, 28%) 1fr auto;
+    gap: 0.65rem;
+    align-items: center;
+}
+
+@media (max-width: 600px) {
+    .bar-chart__row {
+        grid-template-columns: 1fr;
+        gap: 0.25rem;
+    }
+}
+
+.bar-chart__label {
+    font-size: 0.82rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bar-chart__track {
+    height: 22px;
+    background: var(--violet-50);
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid var(--violet-100);
+}
+
+.bar-chart__fill {
+    height: 100%;
+    border-radius: 5px;
+    min-width: 2px;
+    transition: width 0.4s ease;
+}
+
+.bar-chart__fill--direction {
+    background: linear-gradient(90deg, var(--violet-500), var(--violet-400));
+}
+
+.bar-chart__fill--type {
+    background: linear-gradient(90deg, #6366f1, #a78bfa);
+}
+
+.bar-chart__value {
+    font-size: 0.82rem;
+    font-weight: 600;
+    white-space: nowrap;
+    color: var(--color-text);
+}
+
+.bar-chart__value small {
+    font-weight: 400;
+    color: var(--color-muted);
+}

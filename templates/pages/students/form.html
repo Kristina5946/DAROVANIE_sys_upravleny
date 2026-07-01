@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{% if is_create %}Новый ученик{% else %}Редактирование{% endif %}{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/pages/entities.css' %}">{% endblock %}
+
+{% block content %}
+<div class="page-actions">
+    <a href="{% url 'core:student_list' %}" class="btn btn--ghost">← К списку</a>
+</div>
+
+<div class="panel panel--form">
+    <h2 class="panel__title">{% if is_create %}Новый ученик{% else %}Редактирование ученика{% endif %}</h2>
+    <form method="post" class="entity-form">
+        {% csrf_token %}
+        <div class="form-grid">
+            <div class="form-section">
+                <h3 class="form-section__title">Ученик</h3>
+                <div class="field">
+                    <label>{{ form.name.label }}</label>
+                    {{ form.name }}
+                </div>
+                <div class="field-row">
+                    <div class="field">
+                        <label>{{ form.date_of_birth.label }}</label>
+                        {{ form.date_of_birth }}
+                    </div>
+                    <div class="field">
+                        <label>{{ form.gender.label }}</label>
+                        {{ form.gender }}
+                    </div>
+                </div>
+                <div class="field">
+                    <label>{{ form.registration_date.label }}</label>
+                    {{ form.registration_date }}
+                </div>
+                <div class="field">
+                    <label>{{ form.notes.label }}</label>
+                    {{ form.notes }}
+                </div>
+            </div>
+            <div class="form-section">
+                <h3 class="form-section__title">Родитель</h3>
+                <div class="field">
+                    <label>{{ form.parent_name.label }}</label>
+                    {{ form.parent_name }}
+                </div>
+                <div class="field">
+                    <label>{{ form.parent_phone.label }}</label>
+                    {{ form.parent_phone }}
+                </div>
+                <div class="field">
+                    <label>{{ form.parent_email.label }}</label>
+                    {{ form.parent_email }}
+                </div>
+            </div>
+            <div class="form-section form-section--full">
+                <h3 class="form-section__title">Направления</h3>
+                <div class="checkbox-grid">
+                    {{ form.directions }}
+                </div>
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn--primary">Сохранить</button>
+            <a href="{% url 'core:student_list' %}" class="btn btn--ghost">Отмена</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

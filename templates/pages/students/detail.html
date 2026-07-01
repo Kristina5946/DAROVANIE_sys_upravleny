@@ -1,0 +1,272 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load core_extras %}
+
+{% block title %}{{ student.name }}{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/pages/entities.css' %}">{% endblock %}
+
+{% block content %}
+<div class="page-actions">
+    <a href="{% url 'core:student_list' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="btn btn--ghost">← Ученики</a>
+    {% if not edit_mode %}
+    <a href="?edit=1" class="btn btn--primary btn--sm">✎ Редактировать</a>
+    {% endif %}
+</div>
+
+<!-- Профиль -->
+<div class="profile-hero">
+    <div class="profile-hero__avatar">{{ student.name|slice:":1" }}</div>
+    <div class="profile-hero__info">
+        {% if edit_mode and form %}
+        <form method="post" class="entity-form entity-form--inline">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save_profile">
+            <div class="form-grid form-grid--compact">
+                <div class="field">
+                    <label>ФИО</label>
+                    {{ form.name }}
+                </div>
+                <div class="field-row">
+                    <div class="field">
+                        <label>Дата рождения</label>
+                        {{ form.date_of_birth }}
+                    </div>
+                    <div class="field">
+                        <label>Пол</label>
+                        {{ form.gender }}
+                    </div>
+                </div>
+                <div class="field-row">
+                    <div class="field">
+                        <label>Родитель</label>
+                        {{ form.parent_name }}
+                    </div>
+                    <div class="field">
+                        <label>Телефон</label>
+                        {{ form.parent_phone }}
+                    </div>
+                </div>
+                <div class="field">
+                    <label>Заметки</label>
+                    {{ form.notes }}
+                </div>
+                <div class="field form-section--full">
+                    <label>Направления</label>
+                    <div class="checkbox-grid">{{ form.directions }}</div>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn--primary btn--sm">Сохранить</button>
+                <a href="{% url 'core:student_detail' student.pk %}" class="btn btn--ghost btn--sm">Отмена</a>
+            </div>
+        </form>
+        {% else %}
+        <h2 class="profile-hero__name">{{ student.name }}</h2>
+        <p class="profile-hero__meta">
+            {{ student.date_of_birth|age_years }} лет · {{ student.gender|gender_label }}
+            · с {{ student.registration_date|date:"d.m.Y" }}
+        </p>
+        {% if student.parent %}
+        <p class="profile-hero__parent">
+            👪 {{ student.parent.name }}
+            {% if student.parent.phone %}· <a href="tel:{{ student.parent.phone }}">{{ student.parent.phone }}</a>{% endif %}
+        </p>
+        {% endif %}
+        {% if student.notes %}<p class="text-muted">{{ student.notes }}</p>{% endif %}
+        {% endif %}
+    </div>
+</div>
+
+<!-- Направления / абонементы -->
+<section class="section-block">
+    <div class="section-block__head">
+        <h2>Направления и абонементы</h2>
+        {% if all_directions %}
+        <form method="post" action="{% url 'core:student_assign_direction' student.pk %}" class="inline-form">
+            {% csrf_token %}
+            <select name="direction_id" class="filter-select">
+                {% for d in all_directions %}<option value="{{ d.pk }}">{{ d.name }}</option>{% endfor %}
+            </select>
+            <button type="submit" class="btn btn--ghost btn--sm">+ Направление</button>
+        </form>
+        {% endif %}
+    </div>
+    <div class="dir-cards-grid">
+        {% for card in direction_cards %}
+            {% include 'components/student_direction_card.html' %}
+        {% empty %}
+        <p class="text-muted">Нет направлений. Добавьте через «Редактировать» или кнопку выше.</p>
+        {% endfor %}
+    </div>
+</section>
+
+<!-- Вкладки -->
+<div class="tabs" data-tabs>
+    <div class="tabs__nav">
+        <a href="?tab=payments" class="tabs__btn {% if active_tab == 'payments' %}tabs__btn--active{% endif %}">Оплаты</a>
+        <a href="?tab=attendance" class="tabs__btn {% if active_tab == 'attendance' %}tabs__btn--active{% endif %}">Посещения</a>
+    </div>
+
+    {% if active_tab == 'attendance' %}
+    <div class="panel">
+        <div class="section-block__head">
+            <h3>Посещения</h3>
+            {% if not edit_attendance %}
+            <a href="?tab=attendance&edit_attendance=1" class="btn btn--ghost btn--sm">✎ Редактировать</a>
+            {% endif %}
+        </div>
+        {% if edit_attendance %}
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save_attendance">
+            <div class="table-wrap">
+                <table class="dash-table">
+                    <thead>
+                        <tr><th>Дата</th><th>Направление</th><th>Был</th><th>Оплачено</th><th>Примечание</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for a in attendance %}
+                        <tr>
+                            <td>{{ a.lesson_date|date:"d.m.Y" }}</td>
+                            <td><a href="{% url 'core:direction_list' %}?q={{ a.direction.name }}">{{ a.direction.name }}</a></td>
+                            <td><input type="checkbox" name="att_present_{{ a.pk }}" {% if a.present %}checked{% endif %}></td>
+                            <td><input type="checkbox" name="att_paid_{{ a.pk }}" {% if a.paid %}checked{% endif %}></td>
+                            <td><input type="text" name="att_note_{{ a.pk }}" value="{{ a.note }}" class="field-input field-input--sm"></td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5" class="text-muted">Нет посещений</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn--primary btn--sm">Сохранить</button>
+                <a href="?tab=attendance" class="btn btn--ghost btn--sm">Отмена</a>
+            </div>
+        </form>
+        {% else %}
+        <div class="table-wrap">
+            <table class="dash-table">
+                <thead>
+                    <tr><th>Дата</th><th>Направление</th><th>Был</th><th>Оплачено</th><th>Примечание</th></tr>
+                </thead>
+                <tbody>
+                    {% for a in attendance %}
+                    <tr>
+                        <td>{{ a.lesson_date|date:"d.m.Y" }}</td>
+                        <td>{{ a.direction.name }}</td>
+                        <td>{% if a.present %}<span class="badge badge--success">Да</span>{% else %}<span class="badge badge--muted">Нет</span>{% endif %}</td>
+                        <td>{% if a.paid %}<span class="badge badge--success">Да</span>{% else %}<span class="badge badge--warning">Нет</span>{% endif %}</td>
+                        <td>{{ a.note|default:"—" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" class="text-muted">Нет посещений</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    <div class="panel">
+        <div class="section-block__head">
+            <h3>Оплаты</h3>
+            <div class="btn-group">
+                {% if not edit_payments %}
+                <a href="?tab=payments&edit_payments=1" class="btn btn--ghost btn--sm">✎ Редактировать</a>
+                {% endif %}
+            </div>
+        </div>
+
+        <details class="add-panel">
+            <summary class="add-panel__toggle">+ Добавить оплату</summary>
+            <form method="post" class="add-form">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="add_payment">
+                <div class="add-form__grid">
+                    <input type="date" name="payment_date" class="field-input field-input--sm" value="{% now 'Y-m-d' %}" required>
+                    <input type="number" name="amount" class="field-input field-input--sm" placeholder="Сумма" step="0.01" required>
+                    <select name="direction" class="field-input field-input--sm" required>
+                        {% for d in student.directions.all %}
+                        <option value="{{ d.pk }}">{{ d.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <select name="payment_type" class="field-input field-input--sm">
+                        {% for val, label in payment_types %}
+                        <option value="{{ val }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <input type="text" name="notes" class="field-input field-input--sm" placeholder="Примечание">
+                    <button type="submit" class="btn btn--primary btn--sm">Добавить</button>
+                </div>
+            </form>
+        </details>
+
+        {% if edit_payments %}
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save_payments">
+            <div class="table-wrap">
+                <table class="dash-table">
+                    <thead>
+                        <tr><th>Дата</th><th>Направление</th><th>Сумма</th><th>Тип</th><th>Примечание</th><th>Удалить</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for p in payments %}
+                        <tr>
+                            <td><input type="date" name="payment_date_{{ p.pk }}" value="{{ p.payment_date|date:'Y-m-d' }}" class="field-input field-input--sm"></td>
+                            <td><a href="{% url 'core:payments_report' %}?direction={{ p.direction.pk }}">{{ p.direction.name }}</a></td>
+                            <td><input type="number" name="payment_amount_{{ p.pk }}" value="{{ p.amount|input_number }}" class="field-input field-input--sm" step="0.01"></td>
+                            <td>
+                                <select name="payment_type_{{ p.pk }}" class="field-input field-input--sm">
+                                    {% for val, label in payment_types %}
+                                    <option value="{{ val }}" {% if p.payment_type == val %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td><input type="text" name="payment_notes_{{ p.pk }}" value="{{ p.notes }}" class="field-input field-input--sm"></td>
+                            <td><input type="checkbox" name="payment_delete_{{ p.pk }}"></td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="6" class="text-muted">Нет оплат</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn--primary btn--sm">Сохранить</button>
+                <a href="?tab=payments" class="btn btn--ghost btn--sm">Отмена</a>
+            </div>
+        </form>
+        {% else %}
+        <div class="table-wrap">
+            <table class="dash-table">
+                <thead>
+                    <tr><th>Дата</th><th>Направление</th><th>Сумма</th><th>Тип</th><th>Примечание</th></tr>
+                </thead>
+                <tbody>
+                    {% for p in payments %}
+                    <tr>
+                        <td>{{ p.payment_date|date:"d.m.Y" }}</td>
+                        <td>
+                            <a href="{% url 'core:student_list' %}?direction={{ p.direction.pk }}">{{ p.direction.name }}</a>
+                        </td>
+                        <td><strong>{{ p.amount|floatformat:0 }} ₽</strong></td>
+                        <td>{{ p.get_payment_type_display }}</td>
+                        <td>{{ p.notes|default:"—" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" class="text-muted">Нет оплат</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/student-detail.js' %}"></script>
+{% endblock %}

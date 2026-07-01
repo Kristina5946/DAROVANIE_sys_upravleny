@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Преподаватели{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/pages/entities.css' %}">{% endblock %}
+
+{% block content %}
+<div class="page-toolbar">
+    {% include 'components/search_bar.html' with action_url=request.path clear_url=request.path %}
+    <a href="{% url 'core:teacher_create' %}" class="btn btn--primary">+ Преподаватель</a>
+</div>
+
+<p class="list-meta">Найдено: <strong>{{ total_count }}</strong> · клик по строке — карточка преподавателя</p>
+
+<div class="panel panel--table">
+    <div class="table-wrap">
+        <table class="dash-table dash-table--clickable">
+            <thead>
+                <tr>
+                    <th>ФИО</th>
+                    <th>Телефон</th>
+                    <th>Email</th>
+                    <th>Направления</th>
+                    <th>Слотов</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in teachers %}
+                <tr data-href="{% url 'core:teacher_detail' t.pk %}">
+                    <td>
+                        <a href="{% url 'core:teacher_detail' t.pk %}" class="link-entity">{{ t.name }}</a>
+                    </td>
+                    <td>{{ t.phone|default:"—" }}</td>
+                    <td>
+                        {% if t.email %}
+                        <a href="mailto:{{ t.email }}" class="link-entity" onclick="event.stopPropagation()">{{ t.email }}</a>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td>
+                        <div class="tag-list">
+                            {% for d in t.directions.all %}
+                            <a href="{% url 'core:direction_detail' d.pk %}" class="tag" onclick="event.stopPropagation()">{{ d.name }}</a>
+                            {% empty %}<span class="text-muted">—</span>{% endfor %}
+                        </div>
+                    </td>
+                    <td>{{ t.slots_count }}</td>
+                    <td><span class="row-arrow">→</span></td>
+                </tr>
+                {% empty %}
+                    <tr><td colspan="6" class="text-muted text-center">Преподаватели не найдены</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/table-rows.js' %}"></script>
+{% endblock %}

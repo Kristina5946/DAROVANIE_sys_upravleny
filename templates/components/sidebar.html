@@ -1,0 +1,77 @@
+<aside class="sidebar">
+    <div class="sidebar__brand">
+        <div class="sidebar__logo" aria-hidden="true">Д</div>
+        <div class="sidebar__brand-text">
+            <span class="sidebar__brand-name">Дарование</span>
+            <span class="sidebar__brand-sub">Центр развития талантов</span>
+        </div>
+    </div>
+
+    <nav class="sidebar__nav">
+        <a href="{% url 'core:home' %}"
+           class="sidebar__link {% if current_page == 'home' %}sidebar__link--active{% endif %}">
+            <span class="sidebar__icon">⌂</span>
+            <span>Главная</span>
+        </a>
+        <a href="{% url 'core:student_list' %}"
+           class="sidebar__link {% if current_page == 'student_list' or current_page == 'student_detail' or current_page == 'student_create' %}sidebar__link--active{% endif %}">
+            <span class="sidebar__icon">👦</span>
+            <span>Ученики</span>
+        </a>
+        <a href="{% url 'core:teacher_list' %}"
+           class="sidebar__link {% if current_page == 'teacher_list' or current_page == 'teacher_detail' or current_page == 'teacher_create' %}sidebar__link--active{% endif %}">
+            <span class="sidebar__icon">👩‍🏫</span>
+            <span>Преподаватели</span>
+        </a>
+        <a href="{% url 'core:subscriptions' %}"
+           class="sidebar__link {% if current_page == 'subscriptions' %}sidebar__link--active{% endif %}">
+            <span class="sidebar__icon">🎫</span>
+            <span>Абонементы</span>
+        </a>
+        <a href="{% url 'core:payments_report' %}"
+           class="sidebar__link {% if current_page == 'payments_report' %}sidebar__link--active{% endif %}">
+            <span class="sidebar__icon">💳</span>
+            <span>Оплаты</span>
+        </a>
+        <a href="{% url 'core:direction_list' %}"
+           class="sidebar__link {% if current_page == 'direction_list' or current_page == 'direction_detail' or current_page == 'direction_create' %}sidebar__link--active{% endif %}">
+            <span class="sidebar__icon">🎨</span>
+            <span>Направления</span>
+        </a>
+        <a href="{% url 'core:schedule' %}"
+           class="sidebar__link {% if current_page == 'schedule' %}sidebar__link--active{% endif %}">
+            <span class="sidebar__icon">📅</span>
+            <span>Расписание</span>
+        </a>
+        {% if is_admin %}
+        <a href="{% url 'core:reports_dashboard' %}"
+           class="sidebar__link {% if current_page == 'reports_dashboard' or current_page == 'profit_report' or current_page == 'salary_report' %}sidebar__link--active{% endif %}">
+            <span class="sidebar__icon">📊</span>
+            <span>Отчёты</span>
+        </a>
+        {% endif %}
+        {% if is_admin %}
+        <a href="/admin/" class="sidebar__link">
+            <span class="sidebar__icon">⚙</span>
+            <span>Настройки</span>
+        </a>
+        {% endif %}
+    </nav>
+
+    <div class="sidebar__footer">
+        <div class="sidebar__user">
+            <div class="sidebar__avatar">{{ user.username|slice:":1"|upper }}</div>
+            <div class="sidebar__user-info">
+                <span class="sidebar__user-name">{{ user.get_full_name|default:user.username }}</span>
+                <span class="sidebar__user-role">{{ user_role_label|default:"Сотрудник" }}</span>
+            </div>
+        </div>
+        <form method="post" action="{% url 'accounts:logout' %}" class="sidebar__logout">
+            {% csrf_token %}
+            <button type="submit" class="sidebar__logout-btn">
+                <span class="sidebar__logout-icon" aria-hidden="true">↪</span>
+                <span class="sidebar__logout-text">Выйти из аккаунта</span>
+            </button>
+        </form>
+    </div>
+</aside>
