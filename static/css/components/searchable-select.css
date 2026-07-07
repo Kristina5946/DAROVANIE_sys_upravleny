@@ -1,0 +1,110 @@
+.searchable-select-wrap {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+}
+
+.form-field__label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-muted);
+    margin-bottom: 0.25rem;
+}
+
+.form-field__label--invisible {
+    visibility: hidden;
+}
+
+.searchable-select__native {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.searchable-select__input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.45rem 0.65rem;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    font: inherit;
+    font-size: 0.9rem;
+    background: #fff;
+    color: var(--color-text);
+}
+
+.searchable-select__input:focus {
+    outline: none;
+    border-color: var(--violet-400);
+    box-shadow: 0 0 0 3px var(--violet-100);
+}
+
+.searchable-select-wrap.is-open {
+    z-index: 50;
+}
+
+.searchable-select__list {
+    position: fixed;
+    z-index: 100000;
+    max-height: 260px;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    box-shadow: var(--shadow-md, 0 8px 24px rgba(0, 0, 0, 0.12));
+}
+
+.searchable-select__empty {
+    padding: 0.65rem 0.75rem;
+    font-size: 0.85rem;
+    color: var(--color-muted);
+    text-align: center;
+}
+
+.searchable-select__option {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    border: none;
+    background: transparent;
+    font: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+    color: var(--color-text);
+}
+
+.searchable-select__option:hover,
+.searchable-select__option.is-selected {
+    background: var(--violet-50);
+    color: var(--violet-800);
+}
+
+.checkbox-filter__input {
+    width: 100%;
+    box-sizing: border-box;
+    margin-bottom: 0.5rem;
+    padding: 0.45rem 0.65rem;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    font: inherit;
+    font-size: 0.88rem;
+}
+
+.checkbox-filter__input:focus {
+    outline: none;
+    border-color: var(--violet-400);
+    box-shadow: 0 0 0 3px var(--violet-100);
+}
+
+.checkbox-filter__hidden {
+    display: none !important;
+}
+
+.teacher-filter-directions {
+    max-height: 200px;
+    overflow-y: auto;
+}

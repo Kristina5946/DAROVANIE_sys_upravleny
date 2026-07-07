@@ -173,13 +173,13 @@
         </div>
         <div class="toolbar__filters">
             {{ search_form.direction }}
-            <select name="teacher" class="filter-select">
+            <select name="teacher" class="filter-select searchable-select" data-searchable="true" data-placeholder="Все преподаватели">
                 <option value="">Все преподаватели</option>
                 {% for t in teachers %}
                 <option value="{{ t.pk }}" {% if request.GET.teacher == t.pk|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>
                 {% endfor %}
             </select>
-            <select name="day" class="filter-select">
+            <select name="day" class="filter-select searchable-select" data-searchable="true" data-placeholder="Все дни">
                 <option value="">Все дни</option>
                 {% for val, label in weekday_choices %}
                 <option value="{{ val }}" {% if request.GET.day == val|stringformat:"s" %}selected{% endif %}>{{ label }}</option>

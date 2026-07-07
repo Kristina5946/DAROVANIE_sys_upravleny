@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="{% static 'css/main.css' %}">
     <link rel="stylesheet" href="{% static 'css/components/cards.css' %}">
     <link rel="stylesheet" href="{% static 'css/components/subscription.css' %}">
+    <link rel="stylesheet" href="{% static 'css/components/searchable-select.css' %}">
     {% block extra_css %}{% endblock %}
 </head>
 <body class="{% if user.is_authenticated %}body--app{% else %}body--auth{% endif %}">
@@ -41,6 +42,7 @@
     {% else %}
             </main>
     {% endif %}
+    <script src="{% static 'js/searchable-select.js' %}"></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

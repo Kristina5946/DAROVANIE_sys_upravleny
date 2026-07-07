@@ -80,7 +80,7 @@
         {% if teacher_directions %}
         <div class="teacher-filter-form__directions">
             <span class="teacher-filter-form__label">Направления</span>
-            <div class="teacher-filter-directions">
+            <div class="teacher-filter-directions" data-checkbox-filter>
                 {% for checkbox in filter_form.directions %}
                 <label class="teacher-filter-directions__item">{{ checkbox.tag }} {{ checkbox.choice_label }}</label>
                 {% endfor %}
@@ -335,7 +335,8 @@
             <input type="hidden" name="tab" value="directions">
             <label class="teacher-add-direction__label">Добавить направление</label>
             <div class="teacher-add-direction__row">
-                <select name="direction_id" class="filter-select" required>
+                <select name="direction_id" class="filter-select searchable-select" data-searchable="true" data-placeholder="Направление не выбрано" required>
+                    <option value="">Направление не выбрано</option>
                     {% for d in available_directions %}
                     <option value="{{ d.pk }}">{{ d.name }}</option>
                     {% endfor %}

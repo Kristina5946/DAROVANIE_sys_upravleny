@@ -13,7 +13,7 @@
                    value="{{ search_form.q.value|default:'' }}">
         </div>
         <div class="toolbar__filters">
-            <select name="lesson_type" class="filter-select">
+            <select name="lesson_type" class="filter-select searchable-select" data-searchable="true" data-placeholder="Все форматы">
                 <option value="">Все форматы</option>
                 {% for val, label in lesson_types %}
                 <option value="{{ val }}" {% if search_form.lesson_type.value == val %}selected{% endif %}>{{ label }}</option>

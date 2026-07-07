@@ -20,6 +20,12 @@
         return directionTypes[directionId] === 'individual';
     }
 
+    function syncFormSearchableFields(form) {
+        if (window.syncSearchableForm) {
+            window.syncSearchableForm(form);
+        }
+    }
+
     async function loadStudents(directionId, selectedId) {
         const wrap = document.getElementById('slot-student-wrap');
         const select = document.getElementById('id_slot_student');
@@ -28,21 +34,24 @@
         if (!directionId || !isIndividualDirection(directionId)) {
             wrap.hidden = true;
             select.value = '';
-            select.innerHTML = '<option value="">— выберите ученика —</option>';
+            select.innerHTML = '<option value="">Ученик не выбран</option>';
+            syncFormSearchableFields(getSlotForm());
             return;
         }
 
         wrap.hidden = false;
         select.innerHTML = '<option value="">Загрузка…</option>';
+        syncFormSearchableFields(getSlotForm());
 
         try {
             const resp = await fetch(`${studentsUrl}?direction=${encodeURIComponent(directionId)}`);
             if (!resp.ok) {
                 select.innerHTML = '<option value="">Ошибка загрузки</option>';
+                syncFormSearchableFields(getSlotForm());
                 return;
             }
             const data = await resp.json();
-            select.innerHTML = '<option value="">— выберите ученика —</option>';
+            select.innerHTML = '<option value="">Ученик не выбран</option>';
             (data.students || []).forEach((s) => {
                 const opt = document.createElement('option');
                 opt.value = s.id;
@@ -51,8 +60,15 @@
                 select.appendChild(opt);
             });
             if (selectedId) select.value = selectedId;
+            if (!(data.students || []).length) {
+                select.dataset.emptyText = 'На этом направлении пока нет учеников';
+            } else {
+                select.dataset.emptyText = 'Ученик не выбран';
+            }
+            syncFormSearchableFields(getSlotForm());
         } catch (e) {
             select.innerHTML = '<option value="">Ошибка загрузки</option>';
+            syncFormSearchableFields(getSlotForm());
         }
     }
 
@@ -81,6 +97,7 @@
         setVal('end_time', card.getAttribute('data-end'));
         setVal('teacher', card.getAttribute('data-teacher'));
         setVal('classroom', card.getAttribute('data-classroom'));
+        syncFormSearchableFields(form);
 
         loadStudents(directionId, card.getAttribute('data-student') || '');
         modal.hidden = false;
@@ -93,17 +110,18 @@
         form.reset();
         document.getElementById('slot_id').value = '';
         document.getElementById('modal-slot-title').textContent = 'Новое занятие';
-        if (day !== undefined && day !== null) {
+        syncFormSearchableFields(form);
+        if (day !== undefined && day !== null && day !== '') {
             const daySelect = form.querySelector('[name=day_of_week]');
             if (daySelect) daySelect.value = day;
         }
+        syncFormSearchableFields(form);
         const directionSelect = form.querySelector('[name=direction]');
         const directionId = directionSelect ? directionSelect.value : '';
         loadStudents(directionId, '');
         modal.hidden = false;
     }
 
-    // Модалки
     document.querySelectorAll('[data-modal-open]').forEach((btn) => {
         btn.addEventListener('click', () => {
             const id = btn.getAttribute('data-modal-open');
@@ -147,7 +165,6 @@
         }
     }
 
-    // SortableJS — перетаскивание между днями
     const grid = document.getElementById('week-grid');
     if (grid && typeof Sortable !== 'undefined') {
         const reorderUrl = grid.getAttribute('data-reorder-url');

@@ -2,6 +2,7 @@ from django import forms
 from django.utils import timezone
 
 from core.models import Direction, LessonType, Parent, Payment, PaymentType, Student, Teacher, ScheduleSlot, SingleLesson, ScheduleException, Classroom, WeekDay, SingleLessonType, LessonExceptionType
+from core.widgets import searchable_select
 
 
 class SearchForm(forms.Form):
@@ -19,19 +20,19 @@ class SearchForm(forms.Form):
         required=False,
         label='Направление',
         empty_label='Все направления',
-        widget=forms.Select(attrs={'class': 'filter-select'}),
+        widget=searchable_select('filter-select', 'Все направления'),
     )
     gender = forms.ChoiceField(
         required=False,
         label='Пол',
         choices=[('', 'Любой'), ('boy', 'Мальчик'), ('girl', 'Девочка')],
-        widget=forms.Select(attrs={'class': 'filter-select'}),
+        widget=searchable_select('filter-select', 'Любой'),
     )
     lesson_type = forms.ChoiceField(
         required=False,
         label='Формат',
         choices=[('', 'Все'), *LessonType.choices],
-        widget=forms.Select(attrs={'class': 'filter-select'}),
+        widget=searchable_select('filter-select', 'Все форматы'),
     )
 
 
@@ -56,10 +57,34 @@ class StudentForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields['directions'].queryset = Direction.objects.order_by('name')
+        for name in ('date_of_birth', 'registration_date'):
+            if name not in self.fields:
+                continue
+            self.fields[name].localize = False
+            self.fields[name].widget = forms.DateInput(
+                format='%Y-%m-%d',
+                attrs={'type': 'date', 'class': 'field-input'},
+            )
+            self.fields[name].input_formats = ['%Y-%m-%d', '%d.%m.%Y']
+        # В карточке ученика registration_date не в шаблоне — убираем при редактировании
+        if self.instance.pk:
+            self.fields.pop('registration_date', None)
         if self.instance.pk and self.instance.parent:
             self.fields['parent_name'].initial = self.instance.parent.name
             self.fields['parent_phone'].initial = self.instance.parent.phone
             self.fields['parent_email'].initial = self.instance.parent.email
+
+    def clean_date_of_birth(self):
+        value = self.cleaned_data.get('date_of_birth')
+        if (
+            value is None
+            and self.instance.pk
+            and self.instance.date_of_birth
+            and not str(self.data.get('date_of_birth', '')).strip()
+        ):
+            return self.instance.date_of_birth
+        return value
 
     def save(self, commit=True):
         student = super().save(commit=False)
@@ -94,36 +119,56 @@ class PaymentForm(forms.ModelForm):
         fields = ['payment_date', 'amount', 'direction', 'payment_type', 'notes']
         widgets = {
             'payment_date': forms.DateInput(attrs={'type': 'date', 'class': 'field-input field-input--sm'}),
-            'amount': forms.NumberInput(attrs={'class': 'field-input field-input--sm', 'step': '0.01'}),
-            'direction': forms.Select(attrs={'class': 'field-input field-input--sm'}),
-            'payment_type': forms.Select(attrs={'class': 'field-input field-input--sm'}),
+            'amount': forms.NumberInput(attrs={'class': 'field-input field-input--sm', 'step': '0.01', 'placeholder': '0'}),
+            'direction': searchable_select('field-input field-input--sm', 'Направление не выбрано'),
+            'payment_type': searchable_select('field-input field-input--sm', 'Тип оплаты'),
             'notes': forms.TextInput(attrs={'class': 'field-input field-input--sm'}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['amount'].localize = False
+        self.fields['direction'].queryset = Direction.objects.order_by('name')
+        self.fields['direction'].empty_label = 'Направление не выбрано'
+
+    def clean_payment_type(self):
+        value = self.cleaned_data.get('payment_type')
+        return value or PaymentType.SUBSCRIPTION
 
 
 class PaymentQuickAddForm(forms.ModelForm):
+    payment_type = forms.ChoiceField(
+        choices=[('', 'Тип оплаты'), *PaymentType.choices],
+        required=False,
+        label='Тип оплаты',
+        widget=searchable_select('field-input field-input--sm', 'Тип оплаты'),
+    )
+
     class Meta:
         model = Payment
         fields = ['student', 'payment_date', 'amount', 'direction', 'payment_type', 'notes']
         widgets = {
-            'student': forms.Select(attrs={'class': 'field-input field-input--sm'}),
+            'student': searchable_select('field-input field-input--sm', 'Ученик не выбран'),
             'payment_date': forms.DateInput(attrs={'type': 'date', 'class': 'field-input field-input--sm'}),
-            'amount': forms.NumberInput(attrs={'class': 'field-input field-input--sm', 'step': '0.01'}),
-            'direction': forms.Select(attrs={'class': 'field-input field-input--sm'}),
-            'payment_type': forms.Select(attrs={'class': 'field-input field-input--sm'}),
+            'amount': forms.NumberInput(attrs={'class': 'field-input field-input--sm', 'step': '0.01', 'placeholder': '0'}),
+            'direction': searchable_select('field-input field-input--sm', 'Направление не выбрано'),
             'notes': forms.TextInput(attrs={'class': 'field-input field-input--sm', 'placeholder': 'Примечание'}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['amount'].localize = False
+        self.fields['direction'].queryset = Direction.objects.order_by('name')
+        self.fields['direction'].empty_label = 'Направление не выбрано'
         self.fields['student'].queryset = Student.objects.order_by('name')
+        self.fields['student'].empty_label = 'Ученик не выбран'
         if not self.is_bound:
             self.fields['payment_date'].initial = timezone.localdate()
+            self.fields['payment_type'].initial = ''
+
+    def clean_payment_type(self):
+        value = self.cleaned_data.get('payment_type')
+        return value or PaymentType.SUBSCRIPTION
 
 
 class PaymentFilterForm(forms.Form):
@@ -151,13 +196,13 @@ class PaymentFilterForm(forms.Form):
         required=False,
         label='Направление',
         empty_label='Все направления',
-        widget=forms.Select(attrs={'class': 'filter-select'}),
+        widget=searchable_select('filter-select', 'Все направления'),
     )
     payment_type = forms.ChoiceField(
         required=False,
         label='Тип оплаты',
         choices=[('', 'Все типы'), *PaymentType.choices],
-        widget=forms.Select(attrs={'class': 'filter-select'}),
+        widget=searchable_select('filter-select', 'Все типы'),
     )
 
 
@@ -244,7 +289,7 @@ class DateRangeFilterForm(forms.Form):
         required=False,
         label='Направление',
         empty_label='Все направления',
-        widget=forms.Select(attrs={'class': 'filter-select'}),
+        widget=searchable_select('filter-select', 'Все направления'),
     )
 
 
@@ -294,24 +339,29 @@ class ScheduleSlotForm(forms.ModelForm):
             'teacher', 'classroom', 'is_archived',
         ]
         widgets = {
-            'direction': forms.Select(attrs={'class': 'field-input', 'id': 'id_slot_direction'}),
-            'student': forms.Select(attrs={'class': 'field-input', 'id': 'id_slot_student'}),
-            'day_of_week': forms.Select(attrs={'class': 'field-input'}),
+            'direction': searchable_select('field-input', 'Направление не выбрано', id='id_slot_direction'),
+            'student': searchable_select(
+                'field-input', 'Ученик не выбран', id='id_slot_student',
+                **{'data-empty-text': 'На этом направлении пока нет учеников'},
+            ),
+            'day_of_week': searchable_select('field-input', 'День не выбран'),
             'start_time': forms.TimeInput(attrs={'type': 'time', 'class': 'field-input'}),
             'end_time': forms.TimeInput(attrs={'type': 'time', 'class': 'field-input'}),
-            'teacher': forms.Select(attrs={'class': 'field-input'}),
-            'classroom': forms.Select(attrs={'class': 'field-input'}),
+            'teacher': searchable_select('field-input', 'Преподаватель не назначен'),
+            'classroom': searchable_select('field-input', 'Кабинет не указан'),
             'is_archived': forms.CheckboxInput(),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['student'].required = False
-        self.fields['student'].empty_label = '— выберите ученика —'
+        self.fields['student'].empty_label = 'Ученик не выбран'
         self.fields['teacher'].required = False
-        self.fields['teacher'].empty_label = '— не назначен —'
+        self.fields['teacher'].empty_label = 'Преподаватель не назначен'
         self.fields['classroom'].required = False
-        self.fields['classroom'].empty_label = '— не указан —'
+        self.fields['classroom'].empty_label = 'Кабинет не указан'
+        self.fields['direction'].empty_label = 'Направление не выбрано'
+        self.fields['direction'].queryset = Direction.objects.order_by('name')
         direction_id = None
         if self.instance and self.instance.pk and self.instance.direction_id:
             direction_id = self.instance.direction_id
@@ -342,17 +392,20 @@ class SingleLessonForm(forms.Form):
     student = forms.ModelChoiceField(
         queryset=Student.objects.all().order_by('name'),
         label='Ученик',
-        widget=forms.Select(attrs={'class': 'field-input'}),
+        empty_label='Ученик не выбран',
+        widget=searchable_select('field-input', 'Ученик не выбран'),
     )
     direction = forms.ModelChoiceField(
         queryset=Direction.objects.all().order_by('name'),
         label='Направление',
-        widget=forms.Select(attrs={'class': 'field-input'}),
+        empty_label='Направление не выбрано',
+        widget=searchable_select('field-input', 'Направление не выбрано'),
     )
     teacher = forms.ModelChoiceField(
         queryset=Teacher.objects.all().order_by('name'),
         label='Преподаватель',
-        widget=forms.Select(attrs={'class': 'field-input'}),
+        empty_label='Преподаватель не назначен',
+        widget=searchable_select('field-input', 'Преподаватель не назначен'),
     )
     lesson_date = forms.DateField(
         label='Дата',
@@ -367,9 +420,9 @@ class SingleLessonForm(forms.Form):
         widget=forms.TimeInput(attrs={'type': 'time', 'class': 'field-input'}),
     )
     lesson_type = forms.ChoiceField(
-        choices=SingleLessonType.choices,
+        choices=[('', 'Тип не выбран'), *SingleLessonType.choices],
         label='Тип',
-        widget=forms.Select(attrs={'class': 'field-input'}),
+        widget=searchable_select('field-input', 'Тип не выбран'),
     )
     create_payment = forms.BooleanField(
         required=False,
@@ -398,18 +451,20 @@ class ScheduleExceptionForm(forms.Form):
     schedule_slot = forms.ModelChoiceField(
         queryset=ScheduleSlot.objects.filter(is_archived=False),
         label='Занятие',
-        widget=forms.Select(attrs={'class': 'field-input'}),
+        empty_label='Занятие не выбрано',
+        widget=searchable_select('field-input', 'Занятие не выбрано'),
     )
     exception_type = forms.ChoiceField(
         choices=LessonExceptionType.choices,
         label='Тип',
-        widget=forms.Select(attrs={'class': 'field-input'}),
+        widget=searchable_select('field-input', 'Тип исключения'),
     )
     substitute_teacher = forms.ModelChoiceField(
         queryset=Teacher.objects.all().order_by('name'),
         required=False,
         label='Заменяющий преподаватель',
-        widget=forms.Select(attrs={'class': 'field-input'}),
+        empty_label='Преподаватель не назначен',
+        widget=searchable_select('field-input', 'Преподаватель не назначен'),
     )
     notes = forms.CharField(
         required=False,

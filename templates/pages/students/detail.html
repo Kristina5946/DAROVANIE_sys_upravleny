@@ -21,6 +21,13 @@
         <form method="post" class="entity-form entity-form--inline">
             {% csrf_token %}
             <input type="hidden" name="action" value="save_profile">
+            {% if form.errors %}
+            <div class="form-errors">
+                {% for field, errors in form.errors.items %}
+                    {% for error in errors %}<p>{{ field }}: {{ error }}</p>{% endfor %}
+                {% endfor %}
+            </div>
+            {% endif %}
             <div class="form-grid form-grid--compact">
                 <div class="field">
                     <label>ФИО</label>
@@ -52,7 +59,7 @@
                 </div>
                 <div class="field form-section--full">
                     <label>Направления</label>
-                    <div class="checkbox-grid">{{ form.directions }}</div>
+                    <div class="checkbox-grid" data-checkbox-filter>{{ form.directions }}</div>
                 </div>
             </div>
             <div class="form-actions">
@@ -63,7 +70,12 @@
         {% else %}
         <h2 class="profile-hero__name">{{ student.name }}</h2>
         <p class="profile-hero__meta">
-            {{ student.date_of_birth|age_years }} лет · {{ student.gender|gender_label }}
+            {% if student.date_of_birth %}
+            {{ student.date_of_birth|date:"d.m.Y" }} · {{ student.date_of_birth|age_years }} лет
+            {% else %}
+            {{ student.date_of_birth|age_years }} лет
+            {% endif %}
+            · {{ student.gender|gender_label }}
             · с {{ student.registration_date|date:"d.m.Y" }}
         </p>
         {% if student.parent %}
@@ -84,7 +96,8 @@
         {% if all_directions %}
         <form method="post" action="{% url 'core:student_assign_direction' student.pk %}" class="inline-form">
             {% csrf_token %}
-            <select name="direction_id" class="filter-select">
+            <select name="direction_id" class="filter-select searchable-select" data-searchable="true" data-placeholder="Направление не выбрано">
+                <option value="">Направление не выбрано</option>
                 {% for d in all_directions %}<option value="{{ d.pk }}">{{ d.name }}</option>{% endfor %}
             </select>
             <button type="submit" class="btn btn--ghost btn--sm">+ Направление</button>
@@ -184,20 +197,40 @@
                 {% csrf_token %}
                 <input type="hidden" name="action" value="add_payment">
                 <div class="add-form__grid">
-                    <input type="date" name="payment_date" class="field-input field-input--sm" value="{% now 'Y-m-d' %}" required>
-                    <input type="number" name="amount" class="field-input field-input--sm" placeholder="Сумма" step="0.01" required>
-                    <select name="direction" class="field-input field-input--sm" required>
-                        {% for d in student.directions.all %}
-                        <option value="{{ d.pk }}">{{ d.name }}</option>
-                        {% endfor %}
-                    </select>
-                    <select name="payment_type" class="field-input field-input--sm">
-                        {% for val, label in payment_types %}
-                        <option value="{{ val }}">{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                    <input type="text" name="notes" class="field-input field-input--sm" placeholder="Примечание">
-                    <button type="submit" class="btn btn--primary btn--sm">Добавить</button>
+                    <div class="form-field form-field--sm">
+                        <label class="form-field__label">Дата</label>
+                        <input type="date" name="payment_date" class="field-input field-input--sm" value="{% now 'Y-m-d' %}" required>
+                    </div>
+                    <div class="form-field form-field--sm">
+                        <label class="form-field__label">Сумма, ₽</label>
+                        <input type="number" name="amount" class="field-input field-input--sm" placeholder="0" step="0.01" required>
+                    </div>
+                    <div class="form-field form-field--sm">
+                        <label class="form-field__label">Направление</label>
+                        <select name="direction" class="field-input field-input--sm searchable-select" data-searchable="true" data-placeholder="Направление не выбрано" required>
+                            <option value="">Направление не выбрано</option>
+                            {% for d in student.directions.all %}
+                            <option value="{{ d.pk }}">{{ d.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-field form-field--sm">
+                        <label class="form-field__label">Тип оплаты</label>
+                        <select name="payment_type" class="field-input field-input--sm searchable-select" data-searchable="true" data-placeholder="Тип оплаты">
+                            <option value="">Тип оплаты</option>
+                            {% for val, label in payment_types %}
+                            <option value="{{ val }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-field form-field--sm">
+                        <label class="form-field__label">Примечание</label>
+                        <input type="text" name="notes" class="field-input field-input--sm" placeholder="Примечание">
+                    </div>
+                    <div class="form-field form-field--sm form-field--action">
+                        <span class="form-field__label form-field__label--invisible">.</span>
+                        <button type="submit" class="btn btn--primary btn--sm">Добавить</button>
+                    </div>
                 </div>
             </form>
         </details>
@@ -218,7 +251,7 @@
                             <td><a href="{% url 'core:payments_report' %}?direction={{ p.direction.pk }}">{{ p.direction.name }}</a></td>
                             <td><input type="number" name="payment_amount_{{ p.pk }}" value="{{ p.amount|input_number }}" class="field-input field-input--sm" step="0.01"></td>
                             <td>
-                                <select name="payment_type_{{ p.pk }}" class="field-input field-input--sm">
+                                <select name="payment_type_{{ p.pk }}" class="field-input field-input--sm searchable-select" data-searchable="true" data-placeholder="Тип оплаты">
                                     {% for val, label in payment_types %}
                                     <option value="{{ val }}" {% if p.payment_type == val %}selected{% endif %}>{{ label }}</option>
                                     {% endfor %}

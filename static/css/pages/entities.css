@@ -437,6 +437,20 @@
     flex-wrap: wrap;
 }
 
+.form-errors {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    color: #b91c1c;
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+    padding: 0.65rem 0.85rem;
+}
+
+.form-errors p {
+    margin: 0.25rem 0;
+}
+
 .checkbox-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));

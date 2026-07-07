@@ -22,8 +22,14 @@
                 <label>С</label>{{ filter_form.date_from }}
                 <label>По</label>{{ filter_form.date_to }}
             </div>
-            {{ filter_form.direction }}
-            {{ filter_form.payment_type }}
+            <div class="payments-filter-form__field">
+                <label class="form-field__label">Направление</label>
+                {{ filter_form.direction }}
+            </div>
+            <div class="payments-filter-form__field">
+                <label class="form-field__label">Тип</label>
+                {{ filter_form.payment_type }}
+            </div>
             <button type="submit" class="btn btn--primary btn--sm">Применить</button>
             <a href="{% url 'core:payments_report' %}" class="btn btn--ghost btn--sm">Сбросить</a>
         </div>
@@ -65,13 +71,34 @@
         {% csrf_token %}
         <input type="hidden" name="action" value="add_payment">
         <div class="payments-add-form__grid">
-            {{ add_form.student }}
-            {{ add_form.payment_date }}
-            {{ add_form.amount }}
-            {{ add_form.direction }}
-            {{ add_form.payment_type }}
-            {{ add_form.notes }}
-            <button type="submit" class="btn btn--primary btn--sm">Добавить</button>
+            <div class="form-field form-field--sm">
+                <label class="form-field__label" for="{{ add_form.student.id_for_label }}">Ученик</label>
+                {{ add_form.student }}
+            </div>
+            <div class="form-field form-field--sm">
+                <label class="form-field__label" for="{{ add_form.payment_date.id_for_label }}">Дата</label>
+                {{ add_form.payment_date }}
+            </div>
+            <div class="form-field form-field--sm">
+                <label class="form-field__label" for="{{ add_form.amount.id_for_label }}">Сумма, ₽</label>
+                {{ add_form.amount }}
+            </div>
+            <div class="form-field form-field--sm">
+                <label class="form-field__label" for="{{ add_form.direction.id_for_label }}">Направление</label>
+                {{ add_form.direction }}
+            </div>
+            <div class="form-field form-field--sm">
+                <label class="form-field__label" for="{{ add_form.payment_type.id_for_label }}">Тип оплаты</label>
+                {{ add_form.payment_type }}
+            </div>
+            <div class="form-field form-field--sm">
+                <label class="form-field__label" for="{{ add_form.notes.id_for_label }}">Примечание</label>
+                {{ add_form.notes }}
+            </div>
+            <div class="form-field form-field--sm form-field--action">
+                <span class="form-field__label form-field__label--invisible">Действие</span>
+                <button type="submit" class="btn btn--primary btn--sm">Добавить</button>
+            </div>
         </div>
     </form>
 </details>
@@ -106,14 +133,14 @@
                         <td><input type="date" name="payment_date_{{ p.pk }}" value="{{ p.payment_date|date:'Y-m-d' }}" class="cell-input cell-input--sm"></td>
                         <td><a href="{% url 'core:student_detail' p.student_id %}" class="link-entity">{{ p.student.name }}</a></td>
                         <td>
-                            <select name="payment_direction_{{ p.pk }}" class="cell-input cell-input--sm">
+                            <select name="payment_direction_{{ p.pk }}" class="cell-input cell-input--sm searchable-select" data-searchable="true" data-placeholder="Направление не выбрано">
                                 {% for d in directions %}
                                 <option value="{{ d.pk }}" {% if p.direction_id == d.pk %}selected{% endif %}>{{ d.name }}</option>
                                 {% endfor %}
                             </select>
                         </td>
                         <td>
-                            <select name="payment_type_{{ p.pk }}" class="cell-input cell-input--sm">
+                            <select name="payment_type_{{ p.pk }}" class="cell-input cell-input--sm searchable-select" data-searchable="true" data-placeholder="Тип оплаты">
                                 {% for val, label in payment_types %}
                                 <option value="{{ val }}" {% if p.payment_type == val %}selected{% endif %}>{{ label }}</option>
                                 {% endfor %}

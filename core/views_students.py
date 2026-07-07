@@ -87,6 +87,7 @@ def student_detail(request, pk):
     edit_payments = request.GET.get('edit_payments') == '1'
     edit_attendance = request.GET.get('edit_attendance') == '1'
     active_tab = request.GET.get('tab', 'payments')
+    form = None
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -97,6 +98,8 @@ def student_detail(request, pk):
                 form.save()
                 messages.success(request, 'Данные ученика сохранены.')
                 return redirect('core:student_detail', pk=pk)
+            messages.error(request, 'Не удалось сохранить. Проверьте поля формы.')
+            edit_mode = True
         elif action == 'top_up':
             topup_form = SubscriptionTopUpForm(student, request.POST)
             if topup_form.is_valid():
@@ -166,7 +169,8 @@ def student_detail(request, pk):
             messages.success(request, 'Посещения обновлены.')
             return redirect(reverse('core:student_detail', kwargs={'pk': pk}) + '?tab=attendance')
 
-    form = StudentForm(instance=student) if edit_mode else None
+    if edit_mode and form is None:
+        form = StudentForm(instance=student)
     direction_cards = [get_direction_card(student, d) for d in student.directions.all()]
     payments = student.payments.select_related('direction').order_by('-payment_date')[:50]
     attendance = (
