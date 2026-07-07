@@ -1,24 +1,32 @@
 """
-Настройки Django для CRM детского центра «Дарование».
+Общие настройки CRM «Дарование».
 """
 import os
 from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+# Явный путь — на shared-хостинге cwd может отличаться от корня проекта
+load_dotenv(BASE_DIR / '.env')
 
 SECRET_KEY = os.getenv(
     'DJANGO_SECRET_KEY',
     'django-insecure-dev-only-change-in-production',
 )
+
 DEBUG = os.getenv('DJANGO_DEBUG', 'True').lower() in ('1', 'true', 'yes')
+
 ALLOWED_HOSTS = [
     h.strip()
     for h in os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
     if h.strip()
+]
+
+_csrf_origins = os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', '')
+CSRF_TRUSTED_ORIGINS = [
+    o.strip() for o in _csrf_origins.split(',') if o.strip()
 ]
 
 INSTALLED_APPS = [
@@ -103,3 +111,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = 'accounts:login'
 LOGIN_REDIRECT_URL = 'core:home'
 LOGOUT_REDIRECT_URL = 'accounts:login'
+
+SITE_URL = os.getenv('SITE_URL', 'http://127.0.0.1:8000')
+SITE_NAME = os.getenv('SITE_NAME', 'Дарование — CRM')

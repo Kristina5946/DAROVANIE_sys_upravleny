@@ -1,4 +1,5 @@
 .env
+.env.production
 __pycache__/
 *.py[cod]
 *.sqlite3
@@ -9,5 +10,6 @@ staticfiles/
 media/
 *.log
 .DS_Store
-center_data.json
+.restart-app
+passenger_wsgi.py
 audit_log.csv
