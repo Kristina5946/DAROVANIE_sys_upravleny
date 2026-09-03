@@ -1,7 +1,7 @@
 from django import forms
 from django.utils import timezone
 
-from core.models import Direction, LessonType, Parent, Payment, PaymentType, Student, Teacher, ScheduleSlot, SingleLesson, ScheduleException, Classroom, WeekDay, SingleLessonType, LessonExceptionType
+from core.models import Direction, LessonType, Parent, Payment, PaymentType, Student, Teacher, ScheduleSlot, SingleLesson, ScheduleException, Classroom, WeekDay, SingleLessonType, LessonExceptionType, Subscription
 from core.widgets import searchable_select
 
 
@@ -232,6 +232,27 @@ class SubscriptionTopUpForm(forms.Form):
         label='Дата оплаты',
         widget=forms.DateInput(attrs={'type': 'date', 'class': 'field-input'}),
     )
+    from_month_start = forms.BooleanField(
+        required=False,
+        initial=True,
+        label='С 1-го числа текущего месяца',
+        widget=forms.CheckboxInput(attrs={'class': 'field-checkbox'}),
+    )
+    from_next_month = forms.BooleanField(
+        required=False,
+        initial=False,
+        label='С 1-го числа следующего месяца (в очередь)',
+        widget=forms.CheckboxInput(attrs={'class': 'field-checkbox'}),
+    )
+    end_date = forms.DateField(
+        required=False,
+        label='Дата окончания',
+        widget=forms.DateInput(attrs={
+            'type': 'date',
+            'class': 'field-input topup-end-date',
+            'placeholder': 'Авто по расписанию',
+        }),
+    )
     notes = forms.CharField(
         required=False,
         label='Примечание',
@@ -243,8 +264,69 @@ class SubscriptionTopUpForm(forms.Form):
         self.student = student
         self.fields['direction'].queryset = student.directions.all()
         self.fields['amount'].localize = False
+        self.fields['end_date'].localize = False
+        self.fields['end_date'].input_formats = ['%Y-%m-%d', '%d.%m.%Y']
         if not self.is_bound:
             self.fields['payment_date'].initial = timezone.localdate()
+
+
+class SubscriptionEditForm(forms.ModelForm):
+    payment_date = forms.DateField(
+        label='Дата оплаты',
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'field-input'}),
+    )
+    auto_end_date = forms.BooleanField(
+        required=False,
+        initial=False,
+        label='Рассчитать дату окончания по расписанию',
+        widget=forms.CheckboxInput(attrs={'class': 'field-checkbox'}),
+    )
+
+    class Meta:
+        model = Subscription
+        fields = [
+            'total_lessons', 'carried_lessons', 'amount',
+            'start_date', 'end_date', 'notes',
+        ]
+        widgets = {
+            'total_lessons': forms.NumberInput(attrs={'class': 'field-input', 'min': 1, 'max': 50}),
+            'carried_lessons': forms.NumberInput(attrs={'class': 'field-input', 'min': 0, 'max': 20}),
+            'amount': forms.NumberInput(attrs={'class': 'field-input', 'step': '0.01'}),
+            'start_date': forms.DateInput(attrs={'type': 'date', 'class': 'field-input'}),
+            'end_date': forms.DateInput(attrs={'type': 'date', 'class': 'field-input'}),
+            'notes': forms.TextInput(attrs={'class': 'field-input', 'placeholder': 'Примечание'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['amount'].localize = False
+        for name in ('start_date', 'end_date', 'payment_date'):
+            self.fields[name].localize = False
+            self.fields[name].input_formats = ['%Y-%m-%d', '%d.%m.%Y']
+        if self.instance.pk and self.instance.payment_id:
+            self.fields['payment_date'].initial = self.instance.payment.payment_date
+
+    def clean(self):
+        cleaned = super().clean()
+        total = (cleaned.get('total_lessons') or 0) + (cleaned.get('carried_lessons') or 0)
+        if self.instance.pk and total < self.instance.lessons_used():
+            used = self.instance.lessons_used()
+            raise forms.ValidationError(
+                f'Уже отмечено {used} посещений — нельзя установить меньше {used} занятий.'
+            )
+        if cleaned.get('auto_end_date') and self.instance.pk:
+            from core.services.subscriptions import calculate_subscription_end_date
+            cleaned['end_date'] = calculate_subscription_end_date(
+                self.instance.direction_id,
+                cleaned['start_date'],
+                total,
+                student_id=self.instance.student_id,
+            )
+        start = cleaned.get('start_date')
+        end = cleaned.get('end_date')
+        if start and end and end < start:
+            raise forms.ValidationError('Дата окончания не может быть раньше даты начала.')
+        return cleaned
 
 
 class DirectionForm(forms.ModelForm):

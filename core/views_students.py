@@ -9,12 +9,17 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
-from core.forms import PaymentForm, SearchForm, StudentForm, SubscriptionTopUpForm
-from core.models import AttendanceRecord, Direction, Payment, PaymentType, Student
+from core.forms import PaymentForm, SearchForm, StudentForm, SubscriptionEditForm, SubscriptionTopUpForm
+from core.models import AttendanceRecord, Direction, Payment, PaymentType, Student, Subscription
 from core.services.subscriptions import (
+    calculate_subscription_end_date,
     create_custom_subscription,
     estimate_amount_for_lessons,
     get_direction_card,
+    link_attendance_to_active_subscription,
+    resolve_subscription_period,
+    sync_subscription_from_payment,
+    update_subscription,
 )
 
 
@@ -112,6 +117,9 @@ def student_detail(request, pk):
                     total_lessons=topup_form.cleaned_data['lessons_count'],
                     notes=topup_form.cleaned_data.get('notes') or '',
                     created_by=request.user,
+                    from_month_start=topup_form.cleaned_data.get('from_month_start', True),
+                    from_next_month=topup_form.cleaned_data.get('from_next_month', False),
+                    end_date=topup_form.cleaned_data.get('end_date'),
                 )
                 messages.success(
                     request,
@@ -122,6 +130,32 @@ def student_detail(request, pk):
                 return redirect('core:student_detail', pk=pk)
             else:
                 messages.error(request, 'Проверьте данные абонемента.')
+        elif action == 'edit_subscription':
+            subscription = get_object_or_404(
+                Subscription.objects.select_related('direction', 'payment'),
+                pk=request.POST.get('subscription_id'),
+                student=student,
+            )
+            edit_form = SubscriptionEditForm(request.POST, instance=subscription)
+            if edit_form.is_valid():
+                try:
+                    update_subscription(
+                        subscription,
+                        total_lessons=edit_form.cleaned_data['total_lessons'],
+                        carried_lessons=edit_form.cleaned_data['carried_lessons'],
+                        amount=edit_form.cleaned_data['amount'],
+                        start_date=edit_form.cleaned_data['start_date'],
+                        end_date=edit_form.cleaned_data['end_date'],
+                        payment_date=edit_form.cleaned_data['payment_date'],
+                        notes=edit_form.cleaned_data.get('notes') or '',
+                        auto_end_date=edit_form.cleaned_data.get('auto_end_date', False),
+                    )
+                    messages.success(request, f'Абонемент «{subscription.direction.name}» обновлён.')
+                except ValueError as exc:
+                    messages.error(request, str(exc))
+            else:
+                messages.error(request, 'Проверьте данные абонемента.')
+            return redirect('core:student_detail', pk=pk)
         elif action == 'add_payment':
             payment_form = PaymentForm(request.POST)
             payment_form.instance.student = student
@@ -150,6 +184,7 @@ def student_detail(request, pk):
                             payment.delete()
                         else:
                             payment.save()
+                            sync_subscription_from_payment(payment)
                     except (Payment.DoesNotExist, InvalidOperation):
                         pass
             messages.success(request, 'Оплаты обновлены.')
@@ -164,6 +199,7 @@ def student_detail(request, pk):
                         record.paid = f'att_paid_{att_id}' in request.POST
                         record.note = request.POST.get(f'att_note_{att_id}', record.note)
                         record.save()
+                        link_attendance_to_active_subscription(record)
                     except AttendanceRecord.DoesNotExist:
                         pass
             messages.success(request, 'Посещения обновлены.')
@@ -211,16 +247,38 @@ def student_assign_direction(request, pk):
 def estimate_subscription_api(request):
     direction_id = request.GET.get('direction_id')
     lessons = request.GET.get('lessons', '8')
+    student_id = request.GET.get('student_id')
+    payment_date_str = request.GET.get('payment_date')
+    from_month_start = request.GET.get('from_month_start', '1') != '0'
+    from_next_month = request.GET.get('from_next_month', '0') == '1'
     try:
         direction = Direction.objects.get(pk=direction_id)
         lessons_count = max(1, int(lessons))
     except (Direction.DoesNotExist, ValueError):
         return JsonResponse({'error': 'Неверные параметры'}, status=400)
 
-    amount = estimate_amount_for_lessons(direction, lessons_count)
-    lessons_in_month = direction.subscription_cost and lessons_count
+    if payment_date_str:
+        try:
+            payment_date = date.fromisoformat(payment_date_str)
+        except ValueError:
+            payment_date = date.today()
+    else:
+        payment_date = date.today()
+
+    start_date, _ = resolve_subscription_period(
+        payment_date, from_month_start, from_next_month=from_next_month,
+    )
+    end_date = calculate_subscription_end_date(
+        direction.id,
+        start_date,
+        lessons_count,
+        student_id=student_id,
+    )
+    amount = estimate_amount_for_lessons(direction, lessons_count, payment_date)
     return JsonResponse({
         'amount': str(amount),
+        'end_date': end_date.isoformat(),
+        'start_date': start_date.isoformat(),
         'lessons_in_month': lessons_count,
         'subscription_cost': str(direction.subscription_cost),
     })

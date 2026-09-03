@@ -24,6 +24,7 @@
     {% if card.subscription %}
     <div class="subscription-card__period">
         {{ card.subscription.start_date|date:"d.m.Y" }} — {{ card.subscription.end_date|date:"d.m.Y" }}
+        {% if card.is_queued %}<span class="subscription-card__queue-badge">В очереди</span>{% endif %}
     </div>
 
     <div class="progress-bar">

@@ -23,6 +23,7 @@ from core.models import (
     Student,
     Teacher,
 )
+from core.services.subscriptions import link_attendance_to_active_subscription
 
 
 LessonKind = Literal['regular', 'single', 'makeup']
@@ -206,6 +207,7 @@ def save_lesson_attendance(
         rec.paid = row.get('paid', False)
         rec.note = row.get('note', '')[:500]
         rec.save(update_fields=['present', 'paid', 'note', 'updated_at'])
+        link_attendance_to_active_subscription(rec)
 
 
 @transaction.atomic

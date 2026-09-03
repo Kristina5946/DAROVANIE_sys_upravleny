@@ -39,12 +39,18 @@ def _teacher_direction_ids(teacher: Teacher) -> set:
 
 
 def _unit_price(rec: AttendanceRecord) -> Decimal:
-    """Абонемент — price_per_lesson, разовое — single_lesson_cost."""
+    """Абонемент — цена занятия из абонемента или направления; разовое — single_lesson_cost."""
     if rec.single_lesson_id:
         if rec.single_lesson.cost:
             return rec.single_lesson.cost
         return rec.direction.single_lesson_cost
-    return rec.direction.price_per_lesson
+    if rec.subscription_id and rec.subscription.amount and rec.subscription.lessons_available > 0:
+        return (
+            rec.subscription.amount / Decimal(rec.subscription.lessons_available)
+        ).quantize(Decimal('0.01'))
+    if rec.direction.price_per_lesson and rec.direction.price_per_lesson > 0:
+        return rec.direction.price_per_lesson
+    return rec.direction.single_lesson_cost or Decimal('0')
 
 
 def _lesson_kind_label(rec: AttendanceRecord) -> str:
@@ -95,7 +101,7 @@ def _teacher_attendance_records(
         lesson_date__gte=date_from,
         lesson_date__lte=date_to,
     ).select_related(
-        'student', 'direction', 'schedule_slot', 'schedule_slot__teacher', 'single_lesson',
+        'student', 'direction', 'schedule_slot', 'schedule_slot__teacher', 'single_lesson', 'subscription',
     )
 
     if direction_ids:

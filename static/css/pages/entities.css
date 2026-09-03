@@ -299,7 +299,81 @@
     margin: 0.5rem 0;
 }
 
+.dir-card__queue {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px dashed var(--color-border, #eceaf3);
+}
+
+.dir-card__queue-title {
+    margin: 0 0 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--color-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.dir-card__queue-item {
+    padding: 0.65rem 0.75rem;
+    margin-bottom: 0.5rem;
+    background: #f8f7fc;
+    border-radius: 8px;
+    border: 1px solid var(--color-border, #eceaf3);
+}
+
+.dir-card__queue-item:last-child {
+    margin-bottom: 0;
+}
+
+.dir-card__amounts--compact {
+    margin-top: 0.35rem;
+}
+
+.subscription-card__queue-badge {
+    display: inline-block;
+    margin-left: 0.5rem;
+    padding: 0.1rem 0.45rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #6d28d9;
+    background: #ede9fe;
+    border-radius: 999px;
+    vertical-align: middle;
+}
+
 /* Top-up panel */
+.subscription-edit-panel {
+    margin-top: 0.75rem;
+    border-top: 1px dashed var(--color-border, #eceaf3);
+    padding-top: 0.5rem;
+}
+
+.subscription-edit-panel .topup-panel__toggle {
+    color: var(--violet-700, #6d28d9);
+}
+
+.topup-form__row--checkbox {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+}
+
+.checkbox-inline {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.88rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.checkbox-inline input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--violet-600, #7c3aed);
+}
+
 .topup-panel {
     margin-top: 1rem;
     border-top: 1px dashed var(--color-border);

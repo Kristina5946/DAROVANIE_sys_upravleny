@@ -12,7 +12,7 @@ from accounts.permissions import user_can_view_finance
 from core.forms import SearchForm
 from core.models import Direction, Payment, Student, Subscription
 from core.services.schedule_day import get_lessons_for_date
-from core.services.subscriptions import get_subscription_status
+from core.services.subscriptions import get_active_subscription, get_subscription_status
 
 
 MONTHS_RU = ('Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек')
@@ -236,8 +236,11 @@ def subscriptions_grid(request):
                 start_date__month=today.month,
                 status='active',
             )
-            for sub in subs:
-                cards.append(get_subscription_status(sub))
+            for sub in subs.order_by('start_date', 'created_at'):
+                card = get_subscription_status(sub)
+                primary = get_active_subscription(student, direction)
+                card['is_queued'] = bool(primary and primary.pk != sub.pk)
+                cards.append(card)
             if not subs.exists():
                 cards.append({
                     'subscription': None,

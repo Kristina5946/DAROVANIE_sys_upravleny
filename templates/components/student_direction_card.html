@@ -36,6 +36,88 @@
             <strong>{{ card.balance|floatformat:0 }} ₽</strong>
         </div>
     </div>
+
+    <details class="topup-panel subscription-edit-panel">
+        <summary class="topup-panel__toggle">✎ Редактировать абонемент</summary>
+        <form method="post" class="topup-form subscription-edit-form"
+              data-direction-id="{{ card.direction.id }}"
+              data-student-id="{{ student.pk }}"
+              data-start-date="{{ card.subscription.start_date|date:'Y-m-d' }}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="edit_subscription">
+            <input type="hidden" name="subscription_id" value="{{ card.subscription.pk }}">
+            <div class="topup-form__row">
+                <label>Занятий</label>
+                <input type="number" name="total_lessons" class="field-input"
+                       value="{{ card.subscription.total_lessons }}" min="1" max="50" required>
+            </div>
+            <div class="topup-form__row">
+                <label>Перенесено</label>
+                <input type="number" name="carried_lessons" class="field-input"
+                       value="{{ card.subscription.carried_lessons }}" min="0" max="20">
+            </div>
+            <div class="topup-form__row">
+                <label>Сумма, ₽</label>
+                <input type="number" name="amount" class="field-input" step="0.01"
+                       value="{{ card.subscription.amount|input_number }}" required>
+            </div>
+            <div class="topup-form__row">
+                <label>Дата начала</label>
+                <input type="date" name="start_date" class="field-input"
+                       value="{{ card.subscription.start_date|date:'Y-m-d' }}" required>
+            </div>
+            <div class="topup-form__row">
+                <label>Дата окончания</label>
+                <input type="date" name="end_date" class="field-input edit-end-date"
+                       value="{{ card.subscription.end_date|date:'Y-m-d' }}" required>
+            </div>
+            <div class="topup-form__row topup-form__row--checkbox">
+                <label class="checkbox-inline">
+                    <input type="checkbox" name="auto_end_date" value="1" class="edit-auto-end-date">
+                    Рассчитать дату окончания по расписанию
+                </label>
+                <span class="topup-hint text-muted">
+                    Подсказка: <strong class="edit-end-suggested">—</strong>
+                    · если галочка снята — используется введённая дата
+                </span>
+            </div>
+            <div class="topup-form__row">
+                <label>Дата оплаты</label>
+                <input type="date" name="payment_date" class="field-input"
+                       value="{% if card.subscription.payment %}{{ card.subscription.payment.payment_date|date:'Y-m-d' }}{% else %}{% now 'Y-m-d' %}{% endif %}" required>
+            </div>
+            <div class="topup-form__row">
+                <label>Примечание</label>
+                <input type="text" name="notes" class="field-input"
+                       value="{{ card.subscription.notes|default:'' }}" placeholder="Абонемент">
+            </div>
+            <p class="topup-hint text-muted">Изменения синхронизируются с привязанной оплатой.</p>
+            <button type="submit" class="btn btn--primary btn--block btn--sm">Сохранить изменения</button>
+        </form>
+    </details>
+
+    {% if card.queued_subscriptions %}
+    <div class="dir-card__queue">
+        <p class="dir-card__queue-title">В очереди</p>
+        {% for queued in card.queued_subscriptions %}
+        <div class="dir-card__queue-item">
+            <p class="dir-card__period">
+                {{ queued.subscription.start_date|date:"d.m.Y" }} — {{ queued.subscription.end_date|date:"d.m.Y" }}
+            </p>
+            <p class="progress-bar__label">
+                <strong>{{ queued.used }}</strong> из <strong>{{ queued.total }}</strong> занятий
+                · осталось <strong>{{ queued.remaining }}</strong>
+            </p>
+            <div class="dir-card__amounts dir-card__amounts--compact">
+                <div class="dir-card__amount-row">
+                    <span>Оплачено</span>
+                    <strong>{{ queued.amount_paid|floatformat:0 }} ₽</strong>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
     {% else %}
     <p class="dir-card__empty">Абонемент не оформлен</p>
     {% endif %}
@@ -43,6 +125,7 @@
     <details class="topup-panel" {% if not card.has_subscription %}open{% endif %}>
         <summary class="topup-panel__toggle">{% if card.has_subscription %}Пополнить{% else %}Оформить абонемент{% endif %}</summary>
         <form method="post" class="topup-form" data-direction-id="{{ card.direction.id }}"
+              data-student-id="{{ student.pk }}"
               data-price-per-lesson="{{ card.direction.price_per_lesson }}">
             {% csrf_token %}
             <input type="hidden" name="action" value="top_up">
@@ -61,6 +144,28 @@
             <div class="topup-form__row">
                 <label>Дата оплаты</label>
                 <input type="date" name="payment_date" class="field-input" value="{% now 'Y-m-d' %}">
+            </div>
+            <div class="topup-form__row">
+                <label>Дата окончания</label>
+                <input type="date" name="end_date" class="field-input topup-end-date">
+                <span class="topup-hint text-muted">
+                    По расписанию: <strong class="topup-end-suggested">—</strong>
+                    · оставьте пустым — посчитается автоматически
+                </span>
+            </div>
+            <div class="topup-form__row topup-form__row--checkbox">
+                <label class="checkbox-inline">
+                    <input type="checkbox" name="from_month_start" value="1" checked>
+                    С 1-го числа текущего месяца
+                </label>
+                <span class="topup-hint text-muted">Если снять — абонемент начнётся с даты оплаты</span>
+            </div>
+            <div class="topup-form__row topup-form__row--checkbox">
+                <label class="checkbox-inline">
+                    <input type="checkbox" name="from_next_month" value="1" class="topup-from-next-month">
+                    С 1-го числа следующего месяца
+                </label>
+                <span class="topup-hint text-muted">Встанет в очередь и активируется после текущего абонемента</span>
             </div>
             <button type="submit" class="btn btn--primary btn--block btn--sm">Сохранить оплату</button>
         </form>

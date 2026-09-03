@@ -18,6 +18,7 @@ from core.services.payments_report import (
     get_payments_charts,
     get_payments_summary,
 )
+from core.services.subscriptions import sync_subscription_from_payment
 
 
 def _filter_params(request, exclude_edit=False):
@@ -101,6 +102,7 @@ def payments_report(request):
                 if direction_id:
                     payment.direction_id = direction_id
                 payment.save()
+                sync_subscription_from_payment(payment)
                 updated += 1
             messages.success(request, f'Сохранено записей: {updated}.')
         qs = _filter_params(request)
