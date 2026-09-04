@@ -221,7 +221,14 @@ class Classroom(TimeStampedModel):
 
 
 class ScheduleSlot(TimeStampedModel):
-    """Регулярное занятие в недельном расписании."""
+    """Регулярное занятие в недельном расписании.
+
+    Слоты версионируются по дате:
+    - effective_from = когда начал действовать (null = с момента создания)
+    - effective_to = когда перестал действовать (null = бессрочно)
+    Прошлые AttendanceRecord привязаны к конкретной версии, поэтому
+    изменение расписания действует только на будущие даты.
+    """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     direction = models.ForeignKey(
         Direction, on_delete=models.CASCADE, related_name='schedule_slots',
@@ -247,6 +254,15 @@ class ScheduleSlot(TimeStampedModel):
         related_name='schedule_slots', verbose_name='Ученик',
         help_text='Обязательно для индивидуальных занятий',
     )
+    # Версионирование — новые занятия действуют только с даты публикации
+    effective_from = models.DateField(
+        'Действует с', null=True, blank=True,
+        help_text='Пусто — с момента создания. При редактировании создаётся новая версия.',
+    )
+    effective_to = models.DateField(
+        'Действует по', null=True, blank=True,
+        help_text='Пусто — бессрочно. При удалении/изменении ставится вчера.',
+    )
 
     class Meta:
         verbose_name = 'Слот расписания'
@@ -255,6 +271,33 @@ class ScheduleSlot(TimeStampedModel):
 
     def __str__(self):
         return f'{self.get_day_of_week_display()} {self.start_time} — {self.direction}'
+
+    def is_effective_on(self, lesson_date) -> bool:
+        """Действует ли слот на конкретную дату."""
+        if self.is_archived and self.effective_to is None:
+            # архив без даты — считаем недействующим для будущего, но для прошлого показываем как был
+            return False
+        if self.effective_from and lesson_date < self.effective_from:
+            return False
+        if self.effective_to and lesson_date > self.effective_to:
+            return False
+        if self.is_archived:
+            # дополнительно архив означает не показывать в будущем после effective_to
+            return False
+        return True
+
+    def delete(self, *args, **kwargs):
+        """Мягкое удаление если есть история — сохраняем посещения и ЗП."""
+        if self.attendance_records.exists():
+            from datetime import timedelta
+            today = timezone.localdate()
+            yesterday = today - timedelta(days=1)
+            if self.effective_to is None or self.effective_to >= today:
+                self.effective_to = yesterday
+            self.is_archived = True
+            self.save(update_fields=['effective_to', 'is_archived', 'updated_at'])
+            return (1, {'core.ScheduleSlot (archived)': 1})
+        return super().delete(*args, **kwargs)
 
 
 class ScheduleException(TimeStampedModel):
@@ -385,7 +428,7 @@ class AttendanceRecord(TimeStampedModel):
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='attendance')
     lesson_date = models.DateField('Дата занятия')
     schedule_slot = models.ForeignKey(
-        ScheduleSlot, on_delete=models.CASCADE, null=True, blank=True,
+        ScheduleSlot, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='attendance_records',
     )
     single_lesson = models.ForeignKey(
@@ -397,6 +440,13 @@ class AttendanceRecord(TimeStampedModel):
         related_name='attendance_records',
     )
     direction = models.ForeignKey(Direction, on_delete=models.CASCADE)
+    # Снимок преподавателя на момент создания записи — сохраняет ЗП при смене расписания
+    teacher = models.ForeignKey(
+        Teacher, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='attendance_snapshots',
+        verbose_name='Преподаватель (снимок)',
+        help_text='Фиксируется при создании посещения, не меняется при редактировании слота',
+    )
     present = models.BooleanField('Был', default=False)
     paid = models.BooleanField('Оплачено', default=False)
     note = models.CharField('Примечание', max_length=500, blank=True)

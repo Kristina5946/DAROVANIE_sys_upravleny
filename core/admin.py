@@ -60,8 +60,15 @@ class ClassroomAdmin(admin.ModelAdmin):
 
 @admin.register(ScheduleSlot)
 class ScheduleSlotAdmin(admin.ModelAdmin):
-    list_display = ('direction', 'student', 'get_day_of_week_display', 'start_time', 'end_time', 'teacher', 'is_archived')
+    list_display = ('direction', 'student', 'get_day_of_week_display', 'start_time', 'end_time', 'teacher', 'is_archived', 'effective_from', 'effective_to')
     list_filter = ('day_of_week', 'direction', 'is_archived')
+    readonly_fields = ('effective_from', 'effective_to')
+
+    def delete_queryset(self, request, queryset):
+        # Мягкое удаление для слотов с историей
+        for obj in queryset:
+            obj.delete()
+
 
 
 @admin.register(ScheduleException)
@@ -95,9 +102,10 @@ class SubscriptionAdmin(admin.ModelAdmin):
 
 @admin.register(AttendanceRecord)
 class AttendanceRecordAdmin(admin.ModelAdmin):
-    list_display = ('student', 'lesson_date', 'direction', 'present', 'paid')
-    list_filter = ('present', 'paid', 'direction', 'lesson_date')
+    list_display = ('student', 'lesson_date', 'direction', 'teacher', 'present', 'paid', 'schedule_slot')
+    list_filter = ('present', 'paid', 'direction', 'lesson_date', 'teacher')
     date_hierarchy = 'lesson_date'
+    readonly_fields = ('teacher',)
 
 
 @admin.register(MaterialPurchase)

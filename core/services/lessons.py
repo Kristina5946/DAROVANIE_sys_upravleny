@@ -78,8 +78,13 @@ def get_teacher_for_slot(slot: ScheduleSlot, lesson_date: date) -> tuple[Teacher
 
 def get_regular_lessons_on_date(lesson_date: date) -> list[LessonOccurrence]:
     wd = _weekday_for_date(lesson_date)
+    from django.db.models import Q
     slots = (
         ScheduleSlot.objects.filter(day_of_week=wd, is_archived=False)
+        .filter(
+            (Q(effective_from__isnull=True) | Q(effective_from__lte=lesson_date)),
+            (Q(effective_to__isnull=True) | Q(effective_to__gte=lesson_date)),
+        )
         .select_related('direction', 'teacher', 'classroom', 'student', 'student__parent')
         .order_by('sort_order', 'start_time')
     )
@@ -128,9 +133,16 @@ def get_all_lessons_on_date(lesson_date: date) -> list[LessonOccurrence]:
 
 
 def get_week_schedule() -> dict[int, list[ScheduleSlot]]:
-    """Слоты по дням недели 0–6."""
+    """Слоты по дням недели 0–6 (актуальные на сегодня)."""
+    from django.db.models import Q
+    from django.utils import timezone
+    today = timezone.localdate()
     slots = (
         ScheduleSlot.objects.filter(is_archived=False)
+        .filter(
+            (Q(effective_from__isnull=True) | Q(effective_from__lte=today)),
+            (Q(effective_to__isnull=True) | Q(effective_to__gte=today)),
+        )
         .select_related('direction', 'teacher', 'classroom')
         .order_by('sort_order', 'start_time')
     )
@@ -163,11 +175,15 @@ def get_or_create_attendance(lesson: LessonOccurrence, lesson_date: date, studen
             schedule_slot=lesson.schedule_slot,
             defaults={
                 'direction': lesson.direction,
+                'teacher': lesson.display_teacher or lesson.teacher,
                 'present': False,
                 'paid': _student_paid_for_lesson(student, lesson.direction, lesson_date, lesson.lesson_type),
                 'note': '',
             },
         )
+        if not created and record.teacher_id is None and (lesson.display_teacher or lesson.teacher):
+            record.teacher = lesson.display_teacher or lesson.teacher
+            record.save(update_fields=['teacher', 'updated_at'])
     else:
         record, created = AttendanceRecord.objects.get_or_create(
             student=student,
@@ -175,11 +191,15 @@ def get_or_create_attendance(lesson: LessonOccurrence, lesson_date: date, studen
             defaults={
                 'lesson_date': lesson_date,
                 'direction': lesson.direction,
+                'teacher': lesson.teacher,
                 'present': False,
                 'paid': _student_paid_for_lesson(student, lesson.direction, lesson_date, lesson.lesson_type),
                 'note': lesson.single_lesson.notes if lesson.single_lesson else '',
             },
         )
+        if not created and record.teacher_id is None and lesson.teacher:
+            record.teacher = lesson.teacher
+            record.save(update_fields=['teacher', 'updated_at'])
     return record
 
 
@@ -244,6 +264,7 @@ def create_single_lesson_with_payment(
         lesson_date=lesson_date,
         single_lesson=sl,
         direction=direction,
+        teacher=teacher,
         present=False,
         paid=create_payment,
         note=notes or ('Отработка' if lesson_type == SingleLessonType.MAKEUP else 'Разовое'),
@@ -265,8 +286,15 @@ def create_single_lesson_with_payment(
 
 
 def duplicate_schedule_slot(slot: ScheduleSlot) -> ScheduleSlot:
+    from django.db.models import Q
+    from django.utils import timezone
+    today = timezone.localdate()
     max_order = (
         ScheduleSlot.objects.filter(day_of_week=slot.day_of_week)
+        .filter(
+            (Q(effective_from__isnull=True) | Q(effective_from__lte=today)),
+            (Q(effective_to__isnull=True) | Q(effective_to__gte=today)),
+        )
         .order_by('-sort_order').values_list('sort_order', flat=True).first() or 0
     )
     return ScheduleSlot.objects.create(
@@ -278,4 +306,5 @@ def duplicate_schedule_slot(slot: ScheduleSlot) -> ScheduleSlot:
         teacher=slot.teacher,
         classroom=slot.classroom,
         sort_order=max_order + 1,
+        effective_from=today,
     )

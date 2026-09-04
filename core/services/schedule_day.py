@@ -8,6 +8,7 @@ from typing import Literal
 from uuid import UUID
 
 from django.db import transaction
+from django.db.models import Q
 
 from core.models import (
     AttendanceRecord,
@@ -24,6 +25,13 @@ from core.models import (
     Teacher,
 )
 from core.services.subscriptions import link_attendance_to_active_subscription
+
+
+def _effective_q(lesson_date: date) -> Q:
+    return (
+        (Q(effective_from__isnull=True) | Q(effective_from__lte=lesson_date))
+        & (Q(effective_to__isnull=True) | Q(effective_to__gte=lesson_date))
+    )
 
 
 LessonKind = Literal['regular', 'single', 'makeup']
@@ -85,12 +93,13 @@ def students_for_slot(slot: ScheduleSlot) -> list[Student]:
 
 
 def get_lessons_for_date(lesson_date: date) -> list[DayLesson]:
-    """Регулярные слоты на день недели + разовые на дату."""
+    """Регулярные слоты на день недели + разовые на дату (с учётом версионирования)."""
     weekday = lesson_date.weekday()
     lessons: list[DayLesson] = []
 
     slots = (
         ScheduleSlot.objects.filter(day_of_week=weekday, is_archived=False)
+        .filter(_effective_q(lesson_date))
         .select_related('direction', 'teacher', 'classroom', 'student', 'student__parent')
         .order_by('sort_order', 'start_time')
     )
@@ -148,7 +157,7 @@ def get_lessons_for_date(lesson_date: date) -> list[DayLesson]:
 
 
 def get_attendance_for_lesson(lesson: DayLesson, lesson_date: date) -> dict[UUID, AttendanceRecord]:
-    """Записи посещений для занятия (создаёт недостающие)."""
+    """Записи посещений для занятия (создаёт недостающие) с фиксацией teacher snapshot."""
     records = {}
     for student in lesson.students:
         if lesson.schedule_slot:
@@ -158,11 +167,16 @@ def get_attendance_for_lesson(lesson: DayLesson, lesson_date: date) -> dict[UUID
                 schedule_slot=lesson.schedule_slot,
                 defaults={
                     'direction': lesson.direction,
+                    'teacher': lesson.display_teacher or lesson.teacher,
                     'present': False,
                     'paid': _default_paid(student, lesson.direction, lesson_date),
                     'note': '',
                 },
             )
+            # Бэкфил snapshot если был пустой (миграция не покрыла)
+            if rec.teacher_id is None and (lesson.display_teacher or lesson.teacher):
+                rec.teacher = lesson.display_teacher or lesson.teacher
+                rec.save(update_fields=['teacher', 'updated_at'])
         else:
             rec, _ = AttendanceRecord.objects.get_or_create(
                 student=student,
@@ -170,11 +184,15 @@ def get_attendance_for_lesson(lesson: DayLesson, lesson_date: date) -> dict[UUID
                 defaults={
                     'lesson_date': lesson_date,
                     'direction': lesson.direction,
+                    'teacher': lesson.teacher,
                     'present': False,
                     'paid': lesson.kind == 'makeup',
                     'note': lesson.single_lesson.notes or '',
                 },
             )
+            if rec.teacher_id is None and lesson.teacher:
+                rec.teacher = lesson.teacher
+                rec.save(update_fields=['teacher', 'updated_at'])
         records[student.id] = rec
     return records
 
@@ -242,6 +260,7 @@ def add_single_or_makeup(
         lesson_date=lesson_date,
         single_lesson=sl,
         direction=direction,
+        teacher=teacher,
         present=False,
         paid=lesson_type == SingleLessonType.MAKEUP or create_payment,
         note=notes,
@@ -261,10 +280,13 @@ def add_single_or_makeup(
 
 
 def get_week_grid() -> dict[int, list[ScheduleSlot]]:
-    """Расписание по дням недели 0–6."""
+    """Расписание по дням недели 0–6 (только актуальные слоты)."""
+    from django.utils import timezone
+    today = timezone.localdate()
     grid = {i: [] for i in range(7)}
     slots = (
         ScheduleSlot.objects.filter(is_archived=False)
+        .filter(_effective_q(today))
         .select_related('direction', 'teacher', 'classroom', 'student')
         .order_by('sort_order', 'start_time')
     )

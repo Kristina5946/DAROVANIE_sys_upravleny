@@ -43,12 +43,24 @@ def _parse_date(value):
         return timezone.localdate()
 
 
+def _effective_q(lesson_date):
+    from django.db.models import Q
+    return (
+        (Q(effective_from__isnull=True) | Q(effective_from__lte=lesson_date))
+        & (Q(effective_to__isnull=True) | Q(effective_to__gte=lesson_date))
+    )
+
+
 def _cleanup_slot_attendance(slot: ScheduleSlot) -> None:
-    """Удаляет лишние записи посещений при смене ученика на индивидуальном слоте."""
+    """Удаляет лишние записи посещений при смене ученика на индивидуальном слоте.
+    Трогает только будущие посещения — прошлые сохраняются."""
     if slot.direction.lesson_type != LessonType.INDIVIDUAL:
         return
     if slot.student_id:
-        AttendanceRecord.objects.filter(schedule_slot=slot).exclude(
+        AttendanceRecord.objects.filter(
+            schedule_slot=slot,
+            lesson_date__gte=timezone.localdate(),
+        ).exclude(
             student_id=slot.student_id,
         ).delete()
 
@@ -82,7 +94,10 @@ def schedule_page(request):
     ]
 
     search_form = SearchForm(request.GET or None)
-    slots_qs = ScheduleSlot.objects.filter(is_archived=False).select_related(
+    # В таблице показываем только актуальные на сегодня слоты (прошлые версии скрыты)
+    slots_qs = ScheduleSlot.objects.filter(is_archived=False).filter(
+        _effective_q(timezone.localdate())
+    ).select_related(
         'direction', 'teacher', 'classroom', 'student',
     ).order_by('day_of_week', 'sort_order', 'start_time')
 
@@ -121,6 +136,7 @@ def schedule_page(request):
     edit_params['view'] = view
     edit_params['edit'] = '0' if edit_mode else '1'
 
+    # Для проверки наличия истории в шаблонах можно показать архивные слоты отдельно — сейчас скрыты
     return render(request, 'pages/schedule/index.html', {
         'view': view,
         'lesson_date': lesson_date,
@@ -186,18 +202,54 @@ def schedule_slot_save(request):
     instance = get_object_or_404(ScheduleSlot, pk=slot_id) if slot_id else None
     form = ScheduleSlotForm(request.POST, instance=instance)
     if form.is_valid():
-        slot = form.save()
-        if slot.direction.lesson_type == LessonType.GROUP:
-            ScheduleSlot.objects.filter(pk=slot.pk).update(student=None)
-            slot.student = None
-        _cleanup_slot_attendance(slot)
-        if not slot_id:
+        today = timezone.localdate()
+        has_history = False
+        if instance:
+            has_history = AttendanceRecord.objects.filter(
+                schedule_slot=instance,
+                lesson_date__lt=today,
+            ).exists()
+
+        # Значимые поля, меняющие расписание — для них нужно версионирование
+        significant_fields = {'direction', 'day_of_week', 'start_time', 'end_time', 'teacher', 'classroom', 'student'}
+        needs_versioning = has_history and any(f in form.changed_data for f in significant_fields)
+
+        if needs_versioning:
+            from datetime import timedelta
+            yesterday = today - timedelta(days=1)
+            # Закрываем старую версию — действует до вчера, прошлое остаётся
+            if instance.effective_to is None or instance.effective_to >= today:
+                instance.effective_to = yesterday
+                instance.save(update_fields=['effective_to', 'updated_at'])
+            # Создаём новую версию с новыми данными, действует с сегодня
+            new_slot = form.save(commit=False)
+            new_slot.pk = None
+            new_slot.effective_from = today
+            new_slot.effective_to = None
+            new_slot.is_archived = False
+            # sort_order для нового — в конец дня
             max_order = ScheduleSlot.objects.filter(
-                day_of_week=slot.day_of_week,
-            ).order_by('-sort_order').values_list('sort_order', flat=True).first() or 0
-            slot.sort_order = max_order + 1
-            slot.save(update_fields=['sort_order'])
-        messages.success(request, 'Слот расписания сохранён.')
+                day_of_week=new_slot.day_of_week,
+            ).filter(_effective_q(today)).order_by('-sort_order').values_list('sort_order', flat=True).first() or 0
+            new_slot.sort_order = max_order + 1
+            new_slot.save()
+            if new_slot.direction.lesson_type == LessonType.GROUP:
+                ScheduleSlot.objects.filter(pk=new_slot.pk).update(student=None)
+                new_slot.student = None
+            messages.success(request, 'Расписание обновлено — прошлые занятия сохранены, изменения действуют с сегодня.')
+        else:
+            slot = form.save()
+            if slot.direction.lesson_type == LessonType.GROUP:
+                ScheduleSlot.objects.filter(pk=slot.pk).update(student=None)
+                slot.student = None
+            _cleanup_slot_attendance(slot)
+            if not slot_id:
+                max_order = ScheduleSlot.objects.filter(
+                    day_of_week=slot.day_of_week,
+                ).order_by('-sort_order').values_list('sort_order', flat=True).first() or 0
+                slot.sort_order = max_order + 1
+                slot.save(update_fields=['sort_order'])
+            messages.success(request, 'Слот расписания сохранён.')
     else:
         for field, errors in form.errors.items():
             label = form.fields[field].label if field in form.fields else field
@@ -213,8 +265,11 @@ def schedule_slot_duplicate(request, pk):
     new_slot = ScheduleSlot.objects.get(pk=slot.pk)
     new_slot.pk = None
     new_slot.sort_order = slot.sort_order + 1
+    new_slot.effective_from = timezone.localdate()
+    new_slot.effective_to = None
+    new_slot.is_archived = False
     new_slot.save()
-    messages.success(request, 'Слот продублирован.')
+    messages.success(request, 'Слот продублирован — действует с сегодня.')
     return redirect(request.META.get('HTTP_REFERER', '/schedule/?view=week&edit=1'))
 
 
@@ -222,8 +277,24 @@ def schedule_slot_duplicate(request, pk):
 @require_POST
 def schedule_slot_delete(request, pk):
     slot = get_object_or_404(ScheduleSlot, pk=pk)
-    slot.delete()
-    messages.success(request, 'Слот удалён.')
+    from datetime import timedelta
+    today = timezone.localdate()
+    has_any = AttendanceRecord.objects.filter(schedule_slot=slot).exists()
+    has_history = AttendanceRecord.objects.filter(schedule_slot=slot, lesson_date__lt=today).exists()
+    if has_any:
+        # Мягкое удаление — сохраняем историю, скрываем только будущее
+        yesterday = today - timedelta(days=1)
+        if slot.effective_to is None or slot.effective_to >= today:
+            slot.effective_to = yesterday
+        slot.is_archived = True
+        slot.save(update_fields=['effective_to', 'is_archived', 'updated_at'])
+        if has_history:
+            messages.success(request, 'Слот архивирован — прошлые посещения и ЗП сохранены, будущих занятий не будет.')
+        else:
+            messages.success(request, 'Слот архивирован — будущие занятия скрыты, история сохранена.')
+    else:
+        slot.delete()
+        messages.success(request, 'Слот удалён.')
     return redirect(request.META.get('HTTP_REFERER', '/schedule/?view=week'))
 
 
@@ -235,12 +306,32 @@ def schedule_reorder(request):
     except json.JSONDecodeError:
         return JsonResponse({'ok': False, 'error': 'invalid json'}, status=400)
 
+    from datetime import timedelta
+    today = timezone.localdate()
     with transaction.atomic():
         for item in payload.get('items', []):
-            updates = {'sort_order': item.get('sort_order', 0)}
-            if 'day' in item:
-                updates['day_of_week'] = item['day']
-            ScheduleSlot.objects.filter(pk=item['id']).update(**updates)
+            slot = ScheduleSlot.objects.filter(pk=item['id']).first()
+            if not slot:
+                continue
+            new_day = item.get('day', slot.day_of_week)
+            # Смена дня — значимое изменение, версионируем если есть прошлое
+            if new_day != slot.day_of_week and AttendanceRecord.objects.filter(schedule_slot=slot, lesson_date__lt=today).exists():
+                yesterday = today - timedelta(days=1)
+                if slot.effective_to is None or slot.effective_to >= today:
+                    slot.effective_to = yesterday
+                    slot.save(update_fields=['effective_to', 'updated_at'])
+                slot.pk = None
+                slot.day_of_week = new_day
+                slot.sort_order = item.get('sort_order', 0)
+                slot.effective_from = today
+                slot.effective_to = None
+                slot.is_archived = False
+                slot.save()
+            else:
+                updates = {'sort_order': item.get('sort_order', 0)}
+                if 'day' in item:
+                    updates['day_of_week'] = item['day']
+                ScheduleSlot.objects.filter(pk=item['id']).update(**updates)
     return JsonResponse({'ok': True})
 
 

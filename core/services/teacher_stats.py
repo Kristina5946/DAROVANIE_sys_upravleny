@@ -33,8 +33,20 @@ def _parse_dates(date_from: date | None, date_to: date | None) -> tuple[date, da
 
 def _teacher_direction_ids(teacher: Teacher) -> set:
     ids = set(teacher.directions.values_list('id', flat=True))
-    for slot in teacher.schedule_slots.filter(is_archived=False).values_list('direction_id', flat=True):
+    # Учитываем версионирование — только актуальные слоты
+    from django.db.models import Q
+    from django.utils import timezone
+    today = timezone.localdate()
+    for slot in teacher.schedule_slots.filter(is_archived=False).filter(
+        (Q(effective_from__isnull=True) | Q(effective_from__lte=today)),
+        (Q(effective_to__isnull=True) | Q(effective_to__gte=today)),
+    ).values_list('direction_id', flat=True):
         ids.add(slot)
+    # Также добавляем направления из истории посещений (snapshot) — чтобы не потерять старые
+    for did in AttendanceRecord.objects.filter(teacher=teacher).values_list('direction_id', flat=True).distinct():
+        ids.add(did)
+    for did in AttendanceRecord.objects.filter(schedule_slot__teacher=teacher).values_list('direction_id', flat=True).distinct():
+        ids.add(did)
     return ids
 
 
@@ -101,7 +113,7 @@ def _teacher_attendance_records(
         lesson_date__gte=date_from,
         lesson_date__lte=date_to,
     ).select_related(
-        'student', 'direction', 'schedule_slot', 'schedule_slot__teacher', 'single_lesson', 'subscription',
+        'student', 'direction', 'schedule_slot', 'schedule_slot__teacher', 'single_lesson', 'subscription', 'teacher',
     )
 
     if direction_ids:
@@ -112,14 +124,20 @@ def _teacher_attendance_records(
             pair = (rec.lesson_date, rec.schedule_slot_id)
             if pair in cancelled_pairs:
                 continue
-            slot_teacher_id = rec.schedule_slot.teacher_id
-            if slot_teacher_id != teacher.id and pair not in sub_pairs:
+            # Приоритет — snapshot преподавателя в AttendanceRecord, иначе fallback на текущий слот
+            effective_teacher_id = rec.teacher_id
+            if effective_teacher_id is None and rec.schedule_slot:
+                effective_teacher_id = rec.schedule_slot.teacher_id
+            if effective_teacher_id != teacher.id and pair not in sub_pairs:
                 continue
         elif rec.single_lesson_id:
-            if rec.single_lesson.teacher_id != teacher.id:
+            effective_teacher_id = rec.teacher_id or (rec.single_lesson.teacher_id if rec.single_lesson else None)
+            if effective_teacher_id != teacher.id:
                 continue
         else:
-            continue
+            # Запись без слота и без разового — проверяем snapshot
+            if rec.teacher_id != teacher.id:
+                continue
         yield rec
 
 
@@ -139,8 +157,10 @@ def get_teacher_attendance_log(
             'date': rec.lesson_date,
             'time': (
                 f'{rec.schedule_slot.start_time:%H:%M}–{rec.schedule_slot.end_time:%H:%M}'
-                if rec.schedule_slot_id
+                if rec.schedule_slot_id and rec.schedule_slot
                 else f'{rec.single_lesson.start_time:%H:%M}–{rec.single_lesson.end_time:%H:%M}'
+                if rec.single_lesson_id and rec.single_lesson
+                else '—'
             ),
             'direction_id': rec.direction_id,
             'direction_name': rec.direction.name,
