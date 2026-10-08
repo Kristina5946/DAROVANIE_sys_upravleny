@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q
@@ -22,6 +24,16 @@ def _build_filter_params(request, tab=None, exclude=None):
         params['tab'] = tab
     for key in exclude or ('edit',):
         params.pop(key, None)
+    return params.urlencode()
+
+
+def _month_filter_params(request, tab, month_date):
+    month_start = month_date.replace(day=1)
+    next_month = (month_start + timedelta(days=32)).replace(day=1)
+    params = request.GET.copy()
+    params['tab'] = tab
+    params['date_from'] = month_start.isoformat()
+    params['date_to'] = (next_month - timedelta(days=1)).isoformat()
     return params.urlencode()
 
 
@@ -131,6 +143,9 @@ def teacher_detail(request, pk):
 
     filter_params = _build_filter_params(request, tab=None, exclude=('edit', 'tab'))
     filter_suffix = f'&{filter_params}' if filter_params else ''
+    current_month = report['date_from'].replace(day=1)
+    previous_month = current_month - timedelta(days=1)
+    next_month = current_month + timedelta(days=32)
 
     return render(request, 'pages/teachers/detail.html', {
         'teacher': teacher,
@@ -140,6 +155,8 @@ def teacher_detail(request, pk):
         'teacher_directions': teacher_directions,
         'filter_params': filter_params,
         'filter_suffix': filter_suffix,
+        'previous_month_params': _month_filter_params(request, active_tab, previous_month),
+        'next_month_params': _month_filter_params(request, active_tab, next_month),
         'report': report,
         'attendance_log': attendance_log,
         'extras': extras,

@@ -1,16 +1,19 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.http import JsonResponse
+from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
 from core.forms import PaymentForm, SearchForm, StudentForm, SubscriptionEditForm, SubscriptionTopUpForm
-from core.models import AttendanceRecord, Direction, Payment, PaymentType, Student, Subscription
+from core.models import AttendanceRecord, Direction, Payment, PaymentType, Student, Subscription, Teacher
+from core.services.schedule_day import assign_attendance_teacher
 from core.services.subscriptions import (
     calculate_subscription_end_date,
     create_custom_subscription,
@@ -45,6 +48,23 @@ def _apply_student_filters(qs, form):
     if gender:
         qs = qs.filter(gender=gender)
     return qs.distinct()
+
+
+def _attendance_filter_params(request):
+    params = request.GET.copy()
+    for key in ('tab', 'edit_attendance', 'attendance_page'):
+        params.pop(key, None)
+    return params.urlencode()
+
+
+def _attendance_query_params(request, **updates):
+    params = request.GET.copy()
+    params['tab'] = 'attendance'
+    params.pop('edit_attendance', None)
+    params.pop('attendance_page', None)
+    for key, value in updates.items():
+        params[key] = value
+    return params.urlencode()
 
 
 @login_required
@@ -198,21 +218,72 @@ def student_detail(request, pk):
                         record.present = f'att_present_{att_id}' in request.POST
                         record.paid = f'att_paid_{att_id}' in request.POST
                         record.note = request.POST.get(f'att_note_{att_id}', record.note)
-                        record.save()
+                        record.save(update_fields=['present', 'paid', 'note', 'updated_at'])
+                        teacher_id = request.POST.get(f'att_teacher_{att_id}')
+                        if str(record.teacher_id or '') != teacher_id:
+                            teacher = Teacher.objects.filter(pk=teacher_id).first() if teacher_id else None
+                            assign_attendance_teacher(record, teacher)
                         link_attendance_to_active_subscription(record)
-                    except AttendanceRecord.DoesNotExist:
+                    except (AttendanceRecord.DoesNotExist, ValueError) as exc:
+                        if isinstance(exc, ValueError):
+                            messages.error(request, exc)
                         pass
             messages.success(request, 'Посещения обновлены.')
-            return redirect(reverse('core:student_detail', kwargs={'pk': pk}) + '?tab=attendance')
+            filter_params = _attendance_filter_params(request)
+            suffix = f'&{filter_params}' if filter_params else ''
+            return redirect(reverse('core:student_detail', kwargs={'pk': pk}) + f'?tab=attendance{suffix}')
 
     if edit_mode and form is None:
         form = StudentForm(instance=student)
     direction_cards = [get_direction_card(student, d) for d in student.directions.all()]
     payments = student.payments.select_related('direction').order_by('-payment_date')[:50]
-    attendance = (
-        student.attendance.select_related('direction', 'schedule_slot', 'subscription')
-        .order_by('-lesson_date')[:50]
-    )
+    attendance = student.attendance.select_related(
+        'direction', 'schedule_slot', 'subscription', 'teacher', 'single_lesson',
+    ).order_by('-lesson_date', '-updated_at')
+    today = timezone.localdate()
+    current_month_start = today.replace(day=1)
+    next_month_start = (current_month_start + timedelta(days=32)).replace(day=1)
+    current_month_end = next_month_start - timedelta(days=1)
+    attendance_date_from = request.GET.get('attendance_date_from', current_month_start.isoformat())
+    attendance_date_to = request.GET.get('attendance_date_to', current_month_end.isoformat())
+    attendance_direction = request.GET.get('attendance_direction', '')
+    attendance_teacher = request.GET.get('attendance_teacher', '')
+    attendance_present = request.GET.get('attendance_present', '')
+    attendance_paid = request.GET.get('attendance_paid', '')
+    attendance_note = request.GET.get('attendance_note', '').strip()
+    try:
+        date_from = date.fromisoformat(attendance_date_from) if attendance_date_from else None
+        date_to = date.fromisoformat(attendance_date_to) if attendance_date_to else None
+        if date_from:
+            attendance = attendance.filter(lesson_date__gte=date_from)
+        if date_to:
+            attendance = attendance.filter(lesson_date__lte=date_to)
+    except ValueError:
+        messages.error(request, 'Укажите дату в формате ГГГГ-ММ-ДД.')
+        date_from = current_month_start
+        date_to = current_month_end
+        attendance_date_from = date_from.isoformat()
+        attendance_date_to = date_to.isoformat()
+        attendance = attendance.filter(lesson_date__range=(date_from, date_to))
+    if attendance_direction:
+        attendance = attendance.filter(direction_id=attendance_direction)
+    if attendance_teacher:
+        attendance = attendance.filter(teacher_id=attendance_teacher)
+    if attendance_present in ('0', '1'):
+        attendance = attendance.filter(present=attendance_present == '1')
+    if attendance_paid in ('0', '1'):
+        attendance = attendance.filter(paid=attendance_paid == '1')
+    if attendance_note:
+        attendance = attendance.filter(note__icontains=attendance_note)
+    attendance = Paginator(attendance, 30).get_page(request.GET.get('attendance_page'))
+
+    period_month = date_from.replace(day=1) if date_from else current_month_start
+    previous_month = period_month - timedelta(days=1)
+    next_month = period_month + timedelta(days=32)
+    previous_month_start = previous_month.replace(day=1)
+    previous_month_end = (previous_month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+    next_month_start = next_month.replace(day=1)
+    next_month_end = (next_month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
 
     return render(request, 'pages/students/detail.html', {
         'student': student,
@@ -224,6 +295,23 @@ def student_detail(request, pk):
         'direction_cards': direction_cards,
         'payments': payments,
         'attendance': attendance,
+        'attendance_filter_params': _attendance_filter_params(request),
+        'attendance_date_from': attendance_date_from,
+        'attendance_date_to': attendance_date_to,
+        'attendance_previous_month_params': _attendance_query_params(
+            request,
+            attendance_date_from=previous_month_start.isoformat(),
+            attendance_date_to=previous_month_end.isoformat(),
+        ),
+        'attendance_next_month_params': _attendance_query_params(
+            request,
+            attendance_date_from=next_month_start.isoformat(),
+            attendance_date_to=next_month_end.isoformat(),
+        ),
+        'attendance_page_params': _attendance_query_params(request),
+        'attendance_directions': Direction.objects.filter(attendancerecord__student=student).distinct().order_by('name'),
+        'attendance_teachers': Teacher.objects.filter(attendance_snapshots__student=student).distinct().order_by('name'),
+        'all_teachers': Teacher.objects.order_by('name'),
         'payment_types': PaymentType.choices,
         'all_directions': Direction.objects.exclude(pk__in=student.directions.values_list('pk', flat=True)),
         'page_title': student.name,

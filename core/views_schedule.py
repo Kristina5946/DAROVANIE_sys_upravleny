@@ -203,16 +203,10 @@ def schedule_slot_save(request):
     form = ScheduleSlotForm(request.POST, instance=instance)
     if form.is_valid():
         today = timezone.localdate()
-        has_history = False
-        if instance:
-            has_history = AttendanceRecord.objects.filter(
-                schedule_slot=instance,
-                lesson_date__lt=today,
-            ).exists()
-
         # Значимые поля, меняющие расписание — для них нужно версионирование
         significant_fields = {'direction', 'day_of_week', 'start_time', 'end_time', 'teacher', 'classroom', 'student'}
-        needs_versioning = has_history and any(f in form.changed_data for f in significant_fields)
+        # Preserve the prior timetable even when attendance was not opened for its past dates.
+        needs_versioning = instance and any(f in form.changed_data for f in significant_fields)
 
         if needs_versioning:
             from datetime import timedelta
@@ -279,22 +273,13 @@ def schedule_slot_delete(request, pk):
     slot = get_object_or_404(ScheduleSlot, pk=pk)
     from datetime import timedelta
     today = timezone.localdate()
-    has_any = AttendanceRecord.objects.filter(schedule_slot=slot).exists()
-    has_history = AttendanceRecord.objects.filter(schedule_slot=slot, lesson_date__lt=today).exists()
-    if has_any:
-        # Мягкое удаление — сохраняем историю, скрываем только будущее
-        yesterday = today - timedelta(days=1)
-        if slot.effective_to is None or slot.effective_to >= today:
-            slot.effective_to = yesterday
-        slot.is_archived = True
-        slot.save(update_fields=['effective_to', 'is_archived', 'updated_at'])
-        if has_history:
-            messages.success(request, 'Слот архивирован — прошлые посещения и ЗП сохранены, будущих занятий не будет.')
-        else:
-            messages.success(request, 'Слот архивирован — будущие занятия скрыты, история сохранена.')
-    else:
-        slot.delete()
-        messages.success(request, 'Слот удалён.')
+    # A schedule slot is historical data even if attendance was never opened.
+    yesterday = today - timedelta(days=1)
+    if slot.effective_to is None or slot.effective_to >= today:
+        slot.effective_to = yesterday
+    slot.is_archived = True
+    slot.save(update_fields=['effective_to', 'is_archived', 'updated_at'])
+    messages.success(request, 'Слот архивирован — прошлое расписание сохранено, будущих занятий не будет.')
     return redirect(request.META.get('HTTP_REFERER', '/schedule/?view=week'))
 
 

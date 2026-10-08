@@ -71,9 +71,11 @@
         <input type="hidden" name="tab" value="{{ active_tab }}">
         <div class="teacher-filter-form__row">
             <span class="teacher-filter-form__label">Период</span>
+            <a href="?{{ previous_month_params }}" class="btn btn--ghost btn--sm" aria-label="Предыдущий месяц">←</a>
             {{ filter_form.date_from }}
             <span class="text-muted">—</span>
             {{ filter_form.date_to }}
+            <a href="?{{ next_month_params }}" class="btn btn--ghost btn--sm" aria-label="Следующий месяц">→</a>
             <button type="submit" class="btn btn--primary btn--sm">Применить</button>
             <a href="{% url 'core:teacher_detail' teacher.pk %}?tab={{ active_tab }}" class="btn btn--ghost btn--sm">Сбросить</a>
         </div>
@@ -103,7 +105,7 @@
 
     <div class="teacher-metrics teacher-metrics--simple">
         <button type="button" class="metric-card metric-card--clickable" data-modal-open="visits-modal">
-            <div class="metric-card__head"><span class="metric-card__label">Посещений</span></div>
+            <div class="metric-card__head"><span class="metric-card__label">Оплаченных посещений</span></div>
             <div class="metric-card__value">{{ report.total_visits }}</div>
             <span class="teacher-metric-hint">клик — детализация по ученикам</span>
         </button>
@@ -118,6 +120,7 @@
     </div>
     <p class="list-meta">
         {{ report.date_from|date:"d.m.Y" }} — {{ report.date_to|date:"d.m.Y" }}
+        · учтены только занятия с отметками «Был» и «Оплачено»
         · абонемент — цена занятия в абонементе, разовое — разовая цена
         · <a href="{% url 'core:schedule' %}?view=today" class="link-entity">отметить посещения →</a>
     </p>
@@ -139,8 +142,7 @@
                 <thead>
                     <tr>
                         <th>Ученик</th>
-                        <th>Посещений</th>
-                        <th>Оплаченных</th>
+                        <th>Учтено в ЗП</th>
                         <th>Начислено</th>
                     </tr>
                 </thead>
@@ -149,11 +151,10 @@
                     <tr>
                         <td><a href="{% url 'core:student_detail' s.id %}" class="link-entity">{{ s.name }}</a></td>
                         <td>{{ s.visits }}</td>
-                        <td>{{ s.paid_visits }}</td>
                         <td>{{ s.revenue|floatformat:0 }} ₽</td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="4" class="text-muted">Нет посещений за период</td></tr>
+                    <tr><td colspan="3" class="text-muted">Нет посещений за период</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -203,8 +204,7 @@
                     <thead>
                         <tr>
                             <th>Ученик</th>
-                            <th>Посещений</th>
-                            <th>Оплаченных</th>
+                            <th>Учтено в ЗП</th>
                             <th>Всего записей</th>
                             <th>Начислено</th>
                         </tr>
@@ -214,12 +214,11 @@
                         <tr>
                             <td><a href="{% url 'core:student_detail' s.id %}" class="link-entity">{{ s.name }}</a></td>
                             <td>{{ s.visits }}</td>
-                            <td>{{ s.paid_visits }}</td>
                             <td>{{ s.total_records }}</td>
                             <td>{{ s.revenue|floatformat:0 }} ₽</td>
                         </tr>
                         {% empty %}
-                        <tr><td colspan="5" class="text-muted text-center">Нет посещений за период</td></tr>
+                        <tr><td colspan="4" class="text-muted text-center">Нет посещений за период</td></tr>
                         {% endfor %}
                     </tbody>
                     {% if report.students_summary %}
@@ -227,7 +226,7 @@
                         <tr>
                             <td><strong>Итого</strong></td>
                             <td><strong>{{ report.total_visits }}</strong></td>
-                            <td colspan="2"></td>
+                            <td></td>
                             <td><strong>{{ report.total_revenue|floatformat:0 }} ₽</strong></td>
                         </tr>
                     </tfoot>

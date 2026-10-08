@@ -275,29 +275,25 @@ class ScheduleSlot(TimeStampedModel):
     def is_effective_on(self, lesson_date) -> bool:
         """Действует ли слот на конкретную дату."""
         if self.is_archived and self.effective_to is None:
-            # архив без даты — считаем недействующим для будущего, но для прошлого показываем как был
+            # Archive without an end date has no recoverable historical period.
             return False
         if self.effective_from and lesson_date < self.effective_from:
             return False
         if self.effective_to and lesson_date > self.effective_to:
             return False
-        if self.is_archived:
-            # дополнительно архив означает не показывать в будущем после effective_to
-            return False
         return True
 
     def delete(self, *args, **kwargs):
-        """Мягкое удаление если есть история — сохраняем посещения и ЗП."""
-        if self.attendance_records.exists():
-            from datetime import timedelta
-            today = timezone.localdate()
-            yesterday = today - timedelta(days=1)
-            if self.effective_to is None or self.effective_to >= today:
-                self.effective_to = yesterday
-            self.is_archived = True
-            self.save(update_fields=['effective_to', 'is_archived', 'updated_at'])
-            return (1, {'core.ScheduleSlot (archived)': 1})
-        return super().delete(*args, **kwargs)
+        """Archive instead of deleting so the timetable remains historically accurate."""
+        from datetime import timedelta
+
+        today = timezone.localdate()
+        yesterday = today - timedelta(days=1)
+        if self.effective_to is None or self.effective_to >= today:
+            self.effective_to = yesterday
+        self.is_archived = True
+        self.save(update_fields=['effective_to', 'is_archived', 'updated_at'])
+        return (1, {'core.ScheduleSlot (archived)': 1})
 
 
 class ScheduleException(TimeStampedModel):

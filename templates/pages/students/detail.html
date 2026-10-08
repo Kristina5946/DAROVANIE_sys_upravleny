@@ -125,9 +125,26 @@
         <div class="section-block__head">
             <h3>Посещения</h3>
             {% if not edit_attendance %}
-            <a href="?tab=attendance&edit_attendance=1" class="btn btn--ghost btn--sm">✎ Редактировать</a>
+            <a href="?tab=attendance&edit_attendance=1{% if attendance_filter_params %}&{{ attendance_filter_params }}{% endif %}" class="btn btn--ghost btn--sm">✎ Редактировать</a>
             {% endif %}
         </div>
+        <form method="get" class="teacher-filter-form">
+            <input type="hidden" name="tab" value="attendance">
+            <div class="teacher-filter-form__row">
+                <a href="?{{ attendance_previous_month_params }}" class="btn btn--ghost btn--sm" aria-label="Предыдущий месяц">←</a>
+                <input type="date" name="attendance_date_from" value="{{ attendance_date_from }}" class="filter-select" aria-label="Дата с">
+                <span class="text-muted">—</span>
+                <input type="date" name="attendance_date_to" value="{{ attendance_date_to }}" class="filter-select" aria-label="Дата по">
+                <a href="?{{ attendance_next_month_params }}" class="btn btn--ghost btn--sm" aria-label="Следующий месяц">→</a>
+                <select name="attendance_direction" class="filter-select"><option value="">Все направления</option>{% for d in attendance_directions %}<option value="{{ d.pk }}" {% if request.GET.attendance_direction == d.pk|stringformat:'s' %}selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>
+                <select name="attendance_teacher" class="filter-select"><option value="">Все преподаватели</option>{% for t in attendance_teachers %}<option value="{{ t.pk }}" {% if request.GET.attendance_teacher == t.pk|stringformat:'s' %}selected{% endif %}>{{ t.name }}</option>{% endfor %}</select>
+                <select name="attendance_present" class="filter-select"><option value="">Был: все</option><option value="1" {% if request.GET.attendance_present == '1' %}selected{% endif %}>Был: да</option><option value="0" {% if request.GET.attendance_present == '0' %}selected{% endif %}>Был: нет</option></select>
+                <select name="attendance_paid" class="filter-select"><option value="">Оплата: все</option><option value="1" {% if request.GET.attendance_paid == '1' %}selected{% endif %}>Оплачено: да</option><option value="0" {% if request.GET.attendance_paid == '0' %}selected{% endif %}>Оплачено: нет</option></select>
+                <input type="search" name="attendance_note" value="{{ request.GET.attendance_note }}" class="filter-select" placeholder="Примечание">
+                <button type="submit" class="btn btn--primary btn--sm">Фильтровать</button>
+                <a href="?tab=attendance" class="btn btn--ghost btn--sm">Сбросить</a>
+            </div>
+        </form>
         {% if edit_attendance %}
         <form method="post">
             {% csrf_token %}
@@ -135,48 +152,57 @@
             <div class="table-wrap">
                 <table class="dash-table">
                     <thead>
-                        <tr><th>Дата</th><th>Направление</th><th>Был</th><th>Оплачено</th><th>Примечание</th></tr>
+                        <tr><th>Дата</th><th>Направление</th><th>Преподаватель</th><th>Был</th><th>Оплачено</th><th>Примечание</th></tr>
                     </thead>
                     <tbody>
                         {% for a in attendance %}
                         <tr>
                             <td>{{ a.lesson_date|date:"d.m.Y" }}</td>
                             <td><a href="{% url 'core:direction_list' %}?q={{ a.direction.name }}">{{ a.direction.name }}</a></td>
+                            <td><select name="att_teacher_{{ a.pk }}" class="field-input field-input--sm"><option value="">Не назначен</option>{% for t in all_teachers %}<option value="{{ t.pk }}" {% if a.teacher_id == t.pk %}selected{% endif %}>{{ t.name }}</option>{% endfor %}</select></td>
                             <td><input type="checkbox" name="att_present_{{ a.pk }}" {% if a.present %}checked{% endif %}></td>
                             <td><input type="checkbox" name="att_paid_{{ a.pk }}" {% if a.paid %}checked{% endif %}></td>
                             <td><input type="text" name="att_note_{{ a.pk }}" value="{{ a.note }}" class="field-input field-input--sm"></td>
                         </tr>
                         {% empty %}
-                        <tr><td colspan="5" class="text-muted">Нет посещений</td></tr>
+                        <tr><td colspan="6" class="text-muted">Нет посещений</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
             <div class="form-actions">
                 <button type="submit" class="btn btn--primary btn--sm">Сохранить</button>
-                <a href="?tab=attendance" class="btn btn--ghost btn--sm">Отмена</a>
+                <a href="?tab=attendance{% if attendance_filter_params %}&{{ attendance_filter_params }}{% endif %}" class="btn btn--ghost btn--sm">Отмена</a>
             </div>
         </form>
         {% else %}
         <div class="table-wrap">
             <table class="dash-table">
                 <thead>
-                    <tr><th>Дата</th><th>Направление</th><th>Был</th><th>Оплачено</th><th>Примечание</th></tr>
+                    <tr><th>Дата</th><th>Направление</th><th>Преподаватель</th><th>Был</th><th>Оплачено</th><th>Примечание</th></tr>
                 </thead>
                 <tbody>
                     {% for a in attendance %}
                     <tr>
                         <td>{{ a.lesson_date|date:"d.m.Y" }}</td>
                         <td>{{ a.direction.name }}</td>
+                        <td>{{ a.teacher.name|default:"Не назначен" }}</td>
                         <td>{% if a.present %}<span class="badge badge--success">Да</span>{% else %}<span class="badge badge--muted">Нет</span>{% endif %}</td>
                         <td>{% if a.paid %}<span class="badge badge--success">Да</span>{% else %}<span class="badge badge--warning">Нет</span>{% endif %}</td>
                         <td>{{ a.note|default:"—" }}</td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="5" class="text-muted">Нет посещений</td></tr>
+                        <tr><td colspan="6" class="text-muted">Нет посещений</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
+        </div>
+        {% endif %}
+        {% if attendance.paginator.num_pages > 1 %}
+        <div class="form-actions">
+            {% if attendance.has_previous %}<a href="?{{ attendance_page_params }}&attendance_page={{ attendance.previous_page_number }}" class="btn btn--ghost btn--sm">← Назад</a>{% endif %}
+            <span class="text-muted">Страница {{ attendance.number }} из {{ attendance.paginator.num_pages }} · всего {{ attendance.paginator.count }}</span>
+            {% if attendance.has_next %}<a href="?{{ attendance_page_params }}&attendance_page={{ attendance.next_page_number }}" class="btn btn--ghost btn--sm">Вперёд →</a>{% endif %}
         </div>
         {% endif %}
     </div>

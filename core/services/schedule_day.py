@@ -9,6 +9,7 @@ from uuid import UUID
 
 from django.db import transaction
 from django.db.models import Q
+from django.utils import timezone
 
 from core.models import (
     AttendanceRecord,
@@ -98,7 +99,9 @@ def get_lessons_for_date(lesson_date: date) -> list[DayLesson]:
     lessons: list[DayLesson] = []
 
     slots = (
-        ScheduleSlot.objects.filter(day_of_week=weekday, is_archived=False)
+        ScheduleSlot.objects.filter(day_of_week=weekday)
+        # Archived versions remain visible on dates before their effective end.
+        .filter(Q(is_archived=False) | Q(is_archived=True, effective_to__isnull=False))
         .filter(_effective_q(lesson_date))
         .select_related('direction', 'teacher', 'classroom', 'student', 'student__parent')
         .order_by('sort_order', 'start_time')
@@ -226,6 +229,43 @@ def save_lesson_attendance(
         rec.note = row.get('note', '')[:500]
         rec.save(update_fields=['present', 'paid', 'note', 'updated_at'])
         link_attendance_to_active_subscription(rec)
+
+
+@transaction.atomic
+def assign_attendance_teacher(record: AttendanceRecord, teacher: Teacher | None) -> None:
+    """Set the actual teacher for a lesson and keep its attendance and schedule in sync."""
+    if record.schedule_slot_id:
+        exception, _ = ScheduleException.objects.get_or_create(
+            lesson_date=record.lesson_date,
+            schedule_slot=record.schedule_slot,
+            defaults={
+                'exception_type': LessonExceptionType.SUBSTITUTION,
+                'substitute_teacher': teacher,
+            },
+        )
+        if exception.exception_type == LessonExceptionType.CANCEL:
+            raise ValueError('Нельзя назначить преподавателя для отменённого занятия.')
+        if (
+            exception.exception_type != LessonExceptionType.SUBSTITUTION
+            or exception.substitute_teacher_id != (teacher.pk if teacher else None)
+        ):
+            exception.exception_type = LessonExceptionType.SUBSTITUTION
+            exception.substitute_teacher = teacher
+            exception.save(update_fields=['exception_type', 'substitute_teacher', 'updated_at'])
+        AttendanceRecord.objects.filter(
+            schedule_slot=record.schedule_slot,
+            lesson_date=record.lesson_date,
+        ).update(teacher=teacher, updated_at=timezone.now())
+    elif record.single_lesson_id:
+        record.single_lesson.teacher = teacher
+        record.single_lesson.save(update_fields=['teacher', 'updated_at'])
+        AttendanceRecord.objects.filter(single_lesson=record.single_lesson).update(
+            teacher=teacher,
+            updated_at=timezone.now(),
+        )
+    else:
+        record.teacher = teacher
+        record.save(update_fields=['teacher', 'updated_at'])
 
 
 @transaction.atomic

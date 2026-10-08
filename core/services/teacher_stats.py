@@ -100,14 +100,14 @@ def _teacher_attendance_records(
         ).values_list('lesson_date', 'schedule_slot_id')
     )
 
-    sub_pairs = set(
-        ScheduleException.objects.filter(
+    substitutions = {
+        (lesson_date, slot_id): substitute_teacher_id
+        for lesson_date, slot_id, substitute_teacher_id in ScheduleException.objects.filter(
             lesson_date__gte=date_from,
             lesson_date__lte=date_to,
             exception_type=LessonExceptionType.SUBSTITUTION,
-            substitute_teacher=teacher,
-        ).values_list('lesson_date', 'schedule_slot_id')
-    )
+        ).values_list('lesson_date', 'schedule_slot_id', 'substitute_teacher_id')
+    }
 
     qs = AttendanceRecord.objects.filter(
         lesson_date__gte=date_from,
@@ -124,11 +124,14 @@ def _teacher_attendance_records(
             pair = (rec.lesson_date, rec.schedule_slot_id)
             if pair in cancelled_pairs:
                 continue
-            # Приоритет — snapshot преподавателя в AttendanceRecord, иначе fallback на текущий слот
-            effective_teacher_id = rec.teacher_id
-            if effective_teacher_id is None and rec.schedule_slot:
-                effective_teacher_id = rec.schedule_slot.teacher_id
-            if effective_teacher_id != teacher.id and pair not in sub_pairs:
+            # A date-specific substitution is the source of truth for every student in the lesson.
+            if pair in substitutions:
+                effective_teacher_id = substitutions[pair]
+            else:
+                effective_teacher_id = rec.teacher_id
+                if effective_teacher_id is None and rec.schedule_slot:
+                    effective_teacher_id = rec.schedule_slot.teacher_id
+            if effective_teacher_id != teacher.id:
                 continue
         elif rec.single_lesson_id:
             effective_teacher_id = rec.teacher_id or (rec.single_lesson.teacher_id if rec.single_lesson else None)
@@ -269,10 +272,8 @@ def get_teacher_report(
         st = students_all[rec.student_id]
         st['name'] = rec.student.name
         st['total_records'] += 1
-        if rec.paid:
-            st['paid_visits'] += 1
-
-        if not rec.present:
+        # Salary is earned only for an attended lesson that has been paid for.
+        if not (rec.present and rec.paid):
             continue
 
         price = _unit_price(rec)
@@ -286,10 +287,10 @@ def get_teacher_report(
         dst['name'] = rec.student.name
         dst['visits'] += 1
         dst['revenue'] += price
-        if rec.paid:
-            dst['paid_visits'] += 1
+        dst['paid_visits'] += 1
 
         st['visits'] += 1
+        st['paid_visits'] += 1
         st['revenue'] += price
         total_visits += 1
         total_revenue += price
